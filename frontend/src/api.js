@@ -36,11 +36,11 @@ export async function getOptimizationDetail(id) {
   return res.json();
 }
 
-export async function regenerateCoverLetter(optimizationId, tone) {
+export async function regenerateCoverLetter(optimizationId, tone, personalNote = '') {
   const res = await fetch(`${API_BASE}/regenerate-cover-letter`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ optimizationId, tone }),
+    body: JSON.stringify({ optimizationId, tone, personalNote }),
   });
   if (!res.ok) {
     const err = await res.json();

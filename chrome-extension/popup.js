@@ -28,11 +28,12 @@ function checkCurrentPage() {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
     if (tab && tab.url && tab.url.includes('indeed.com')) {
-      const isJobPage = tab.url.includes('viewjob') || tab.url.includes('vjk=') || tab.url.includes('jk=');
+      const jobSignals = ['viewjob', 'vjk=', 'jk=', 'fccid=', '/rc/clk', '/jobs?'];
+      const isJobPage = jobSignals.some(sig => tab.url.includes(sig));
       if (isJobPage) {
         setStatus('page', 'online', 'On Indeed job listing — ready!');
       } else {
-        setStatus('page', 'offline', 'On Indeed, but not a job page');
+        setStatus('page', 'online', 'On Indeed — button will appear if job content found');
       }
     } else {
       setStatus('page', 'offline', 'Not on Indeed — navigate to a job listing');

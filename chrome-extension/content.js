@@ -2,18 +2,53 @@
   'use strict';
 
   const BACKEND_URL = 'http://localhost:3001';
+  const INIT_DELAY = 2000;
+  const RETRY_INTERVAL = 3000;
+  const MAX_RETRIES = 10;
 
   console.log('[Indeeeed] Content script loaded on:', window.location.href);
 
   // ── Detection: Are we on an Indeed job listing page? ──
   function isJobListingPage() {
     const url = window.location.href;
-    const hasJobView = url.includes('/viewjob') || url.includes('vjk=') || url.includes('jk=');
-    const hasJobContent = !!document.querySelector('[class*="jobsearch-JobComponent"]') ||
-                          !!document.querySelector('[class*="jobsearch-ViewJobLayout"]') ||
-                          !!document.querySelector('.jobsearch-JobInfoHeader-title') ||
-                          !!document.querySelector('[data-testid="jobsearch-ViewJobLayout"]');
-    return hasJobView || hasJobContent;
+
+    // URL-based detection — Indeed uses many URL patterns
+    const urlSignals = [
+      '/viewjob',
+      'vjk=',
+      'jk=',
+      'fccid=',
+      '/rc/clk',
+      '/pagead/',
+      '/company/',
+    ];
+    const hasJobUrl = urlSignals.some(sig => url.includes(sig));
+
+    // DOM-based detection — look for job description content
+    // Indeed changes class names frequently, so cast a wide net
+    const domSelectors = [
+      '#jobDescriptionText',
+      '[id*="jobDescription"]',
+      '[class*="jobsearch-JobComponent"]',
+      '[class*="jobsearch-ViewJobLayout"]',
+      '[class*="JobInfoHeader"]',
+      '[data-testid*="jobsearch"]',
+      '[data-testid*="JobInfo"]',
+      '.jobsearch-JobInfoHeader-title',
+      '.jobsearch-jobDescriptionText',
+      '[class*="jobDescription"]',
+      '[class*="job-description"]',
+      // Side panel on search results page
+      '[class*="jobsearch-RightPane"]',
+      '[id*="jobsearch-ViewjobPaneWrapper"]',
+      '#mosaic-provider-jobcards .result',
+    ];
+    const hasJobDOM = domSelectors.some(sel => {
+      try { return !!document.querySelector(sel); } catch { return false; }
+    });
+
+    console.log('[Indeeeed] Detection — URL signals:', hasJobUrl, '| DOM signals:', hasJobDOM);
+    return hasJobUrl || hasJobDOM;
   }
 
   // ── Scraping Logic ──
@@ -53,15 +88,26 @@
       'h1[class*="JobInfoHeader"]',
       '.jobsearch-JobInfoHeader-title-container h1',
       'h1.icl-u-xs-mb--xs',
+      '[class*="jobTitle"]',
+      '[data-testid*="Title"]',
+      // Side panel selectors
+      '.jcs-JobTitle span',
+      '.jcs-JobTitle',
+      'a[data-jk] span[title]',
+      'h2.jobTitle span',
+      'h2.jobTitle',
+      // Last resort
       'h1'
     ];
 
     for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el && el.textContent.trim()) {
-        console.log('[Indeeeed] Found job title via:', sel);
-        return el.textContent.trim();
-      }
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.textContent.trim().length > 2) {
+          console.log('[Indeeeed] Found job title via:', sel, '→', el.textContent.trim().substring(0, 60));
+          return el.textContent.trim();
+        }
+      } catch { /* skip invalid selectors */ }
     }
     return 'Unknown Title';
   }
@@ -70,19 +116,26 @@
     const selectors = [
       '[data-testid="inlineHeader-companyName"] a',
       '[data-testid="inlineHeader-companyName"]',
+      '[data-testid*="companyName"]',
       'div.jobsearch-InlineCompanyRating a',
       'div.jobsearch-InlineCompanyRating div',
       '[class*="CompanyName"] a',
+      '[class*="companyName"]',
       '[data-company-name]',
-      '.jobsearch-CompanyInfoContainer a'
+      '.jobsearch-CompanyInfoContainer a',
+      // Side panel
+      'span.companyName',
+      '[class*="company_location"] [data-testid="company-name"]',
     ];
 
     for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el && el.textContent.trim()) {
-        console.log('[Indeeeed] Found company name via:', sel);
-        return el.textContent.trim();
-      }
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.textContent.trim().length > 1) {
+          console.log('[Indeeeed] Found company name via:', sel, '→', el.textContent.trim());
+          return el.textContent.trim();
+        }
+      } catch { /* skip */ }
     }
     return 'Unknown Company';
   }
@@ -94,19 +147,28 @@
       '.jobsearch-jobDescriptionText',
       '[class*="jobDescriptionText"]',
       '[data-testid="jobDescriptionText"]',
-      '.jobsearch-JobComponent-description'
+      '[class*="jobDescription"]',
+      '.jobsearch-JobComponent-description',
+      '#jobDetails',
+      '[id*="jobDetails"]',
+      // Side panel on search results
+      '.jobsearch-JobComponent',
+      '[class*="JobComponent"]',
     ];
 
     for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el && el.textContent.trim()) {
-        console.log('[Indeeeed] Found job description via:', sel);
-        return el.textContent.trim();
-      }
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.textContent.trim().length > 100) {
+          console.log('[Indeeeed] Found job description via:', sel, '(', el.textContent.trim().length, 'chars )');
+          return el.textContent.trim();
+        }
+      } catch { /* skip */ }
     }
 
-    // Fallback: grab all text from the main content area
-    const main = document.querySelector('main') || document.body;
+    // Fallback: grab text from the main content area
+    console.log('[Indeeeed] Using fallback scraping for job description');
+    const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
     return main.textContent.substring(0, 8000).trim();
   }
 
@@ -200,7 +262,10 @@
 
   // ── Floating Button ──
   function createOptimizeButton() {
-    if (document.getElementById('indeeeed-optimize-btn')) return;
+    if (document.getElementById('indeeeed-optimize-btn')) {
+      console.log('[Indeeeed] Button already exists, skipping');
+      return;
+    }
 
     const btn = document.createElement('button');
     btn.id = 'indeeeed-optimize-btn';
@@ -212,7 +277,16 @@
 
     btn.addEventListener('click', handleOptimizeClick);
     document.body.appendChild(btn);
-    console.log('[Indeeeed] Floating optimize button injected');
+    console.log('[Indeeeed] ✅ Floating optimize button injected into DOM');
+
+    // Verify it's actually visible
+    const computed = window.getComputedStyle(btn);
+    console.log('[Indeeeed] Button computed styles — display:', computed.display,
+      '| visibility:', computed.visibility,
+      '| position:', computed.position,
+      '| z-index:', computed.zIndex,
+      '| bottom:', computed.bottom,
+      '| right:', computed.right);
   }
 
   async function handleOptimizeClick() {
@@ -221,7 +295,6 @@
 
     console.log('[Indeeeed] Optimize button clicked');
 
-    // Scrape job data
     const jobData = scrapeJobData();
 
     if (!jobData.fullDescription || jobData.fullDescription.length < 50) {
@@ -229,7 +302,6 @@
       return;
     }
 
-    // Enter loading state
     btn.classList.add('loading');
     textSpan.textContent = 'Optimizing...';
     showStatusBadge('⏳ Sending to optimizer...');
@@ -279,31 +351,79 @@
     }
   }
 
-  // ── Initialization ──
+  // ── Initialization with retry ──
+  let retryCount = 0;
+
   function init() {
-    // Wait a beat for Indeed's dynamic content to load
-    setTimeout(() => {
-      if (isJobListingPage()) {
-        console.log('[Indeeeed] Indeed job listing detected — injecting UI');
-        createOptimizeButton();
-        showStatusBadge('🟢 Job detected');
-        setTimeout(hideStatusBadge, 3000);
-      } else {
-        console.log('[Indeeeed] Not a job listing page, skipping injection');
-      }
-    }, 1500);
+    console.log(`[Indeeeed] Init attempt ${retryCount + 1}/${MAX_RETRIES} — URL: ${window.location.href}`);
+
+    if (isJobListingPage()) {
+      console.log('[Indeeeed] ✅ Indeed job listing detected — injecting UI');
+      createOptimizeButton();
+      showStatusBadge('🟢 Job detected');
+      setTimeout(hideStatusBadge, 3000);
+      retryCount = 0;
+    } else if (retryCount < MAX_RETRIES) {
+      retryCount++;
+      console.log(`[Indeeeed] Job page not detected yet, retrying in ${RETRY_INTERVAL}ms... (${retryCount}/${MAX_RETRIES})`);
+      setTimeout(init, RETRY_INTERVAL);
+    } else {
+      console.log('[Indeeeed] Max retries reached. This may not be a job listing page.');
+      // Still inject the button on any indeed.com page as a fallback —
+      // the user can click it and we'll attempt to scrape whatever is there
+      console.log('[Indeeeed] Injecting button anyway as fallback (on indeed.com domain)');
+      createOptimizeButton();
+    }
   }
 
-  // Handle SPA-style navigation (Indeed uses pushState)
+  // Handle SPA-style navigation (Indeed uses pushState/replaceState)
   let lastUrl = location.href;
+
   const observer = new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      console.log('[Indeeeed] URL changed, re-checking page...');
-      init();
+      console.log('[Indeeeed] URL changed to:', location.href);
+      retryCount = 0;
+      // Remove old button so it re-injects cleanly
+      const oldBtn = document.getElementById('indeeeed-optimize-btn');
+      if (oldBtn) oldBtn.remove();
+      setTimeout(init, INIT_DELAY);
     }
   });
-  observer.observe(document.body, { childList: true, subtree: true });
 
-  init();
+  // Also intercept pushState/replaceState directly
+  const origPushState = history.pushState;
+  history.pushState = function () {
+    origPushState.apply(this, arguments);
+    window.dispatchEvent(new Event('indeeeed-urlchange'));
+  };
+  const origReplaceState = history.replaceState;
+  history.replaceState = function () {
+    origReplaceState.apply(this, arguments);
+    window.dispatchEvent(new Event('indeeeed-urlchange'));
+  };
+  window.addEventListener('popstate', () => {
+    window.dispatchEvent(new Event('indeeeed-urlchange'));
+  });
+  window.addEventListener('indeeeed-urlchange', () => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      console.log('[Indeeeed] History state changed to:', location.href);
+      retryCount = 0;
+      const oldBtn = document.getElementById('indeeeed-optimize-btn');
+      if (oldBtn) oldBtn.remove();
+      setTimeout(init, INIT_DELAY);
+    }
+  });
+
+  if (document.body) {
+    observer.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+  }
+
+  // Start with initial delay to let Indeed's dynamic content load
+  setTimeout(init, INIT_DELAY);
 })();

@@ -31,6 +31,7 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('resume');
   const [tone, setTone] = useState('Professional');
+  const [personalNote, setPersonalNote] = useState('');
   const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
         const detail = await getOptimizationDetail(optimizationId);
         setData(detail);
         setTone(detail.tone || 'Professional');
+        setPersonalNote(detail.personalNote || '');
       } catch (err) {
         setError(err.message);
       } finally {
@@ -47,17 +49,20 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
     })();
   }, [optimizationId]);
 
-  const handleToneChange = async (newTone) => {
-    setTone(newTone);
+  const handleRegenerate = async (newTone, note) => {
+    const useTone = newTone || tone;
+    const useNote = note !== undefined ? note : personalNote;
+    setTone(useTone);
     setRegenerating(true);
     try {
-      const result = await regenerateCoverLetter(optimizationId, newTone);
+      const result = await regenerateCoverLetter(optimizationId, useTone, useNote);
       setData(prev => ({
         ...prev,
         coverLetterText: result.coverLetterText,
         coverLetterPath: result.coverLetterPath,
         coverLetterFileName: result.coverLetterFileName,
-        tone: newTone,
+        tone: useTone,
+        personalNote: useNote,
       }));
     } catch (err) {
       setError(`Failed to regenerate: ${err.message}`);
@@ -197,6 +202,41 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
 
       {tab === 'coverLetter' && (
         <div className="space-y-4">
+          {/* Personal Motivation */}
+          <div className="bg-surface-raised border border-surface-overlay rounded-xl p-5">
+            <label className="block text-sm font-bold text-slate-300 mb-2">
+              Why do you want this job?
+            </label>
+            <p className="text-xs text-slate-500 mb-3">
+              Add 2-3 sentences about your personal motivation. This gets woven into the cover letter to make it feel genuine.
+            </p>
+            <textarea
+              value={personalNote}
+              onChange={(e) => setPersonalNote(e.target.value)}
+              placeholder='e.g. "I\'ve admired this company\'s mission in renewable energy since college, and this role combines my project management experience with my passion for sustainability."'
+              rows={3}
+              maxLength={500}
+              className="w-full bg-surface border border-surface-overlay rounded-lg px-4 py-3 text-sm text-slate-200
+                         placeholder-slate-600 resize-none focus:outline-none focus:border-primary-light focus:ring-1 focus:ring-primary-light transition-colors"
+            />
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-slate-600">{personalNote.length}/500</span>
+              <button
+                onClick={() => handleRegenerate(tone, personalNote)}
+                disabled={regenerating}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2
+                  ${regenerating
+                    ? 'bg-surface-overlay text-slate-500 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary-light'}`}
+              >
+                {regenerating && (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                )}
+                {regenerating ? 'Regenerating...' : 'Regenerate Cover Letter'}
+              </button>
+            </div>
+          </div>
+
           {/* Tone Selector */}
           <div className="flex items-center gap-4">
             <span className="text-sm font-medium text-slate-400">Tone:</span>
@@ -204,7 +244,7 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
               {TONES.map(t => (
                 <button
                   key={t}
-                  onClick={() => handleToneChange(t)}
+                  onClick={() => handleRegenerate(t, personalNote)}
                   disabled={regenerating}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all
                     ${tone === t
@@ -217,9 +257,6 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
                 </button>
               ))}
             </div>
-            {regenerating && (
-              <div className="w-5 h-5 border-2 border-primary-light border-t-transparent rounded-full animate-spin" />
-            )}
           </div>
 
           {/* Cover Letter */}

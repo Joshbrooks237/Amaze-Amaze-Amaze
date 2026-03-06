@@ -44,6 +44,23 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
+// ── Filename Sanitization ──
+function sanitizeForFilename(text, maxLen = 20) {
+  return (text || '')
+    .replace(/\d+(\.\d+)?\s*(out of \d+)?\s*reviews?/gi, '') // "4.1 out of 5 reviews"
+    .replace(/\d+(\.\d+)?\s*stars?/gi, '')                    // "4.1 stars"
+    .replace(/\(.*?\)/g, '')                                   // anything in parentheses
+    .replace(/[^a-zA-Z0-9\s-]/g, '')                           // strip special chars
+    .trim()
+    .replace(/\s+/g, '-')                                      // spaces to hyphens
+    .replace(/-{2,}/g, '-')                                    // collapse multiple hyphens
+    .replace(/^-|-$/g, '')                                     // trim leading/trailing hyphens
+    .toLowerCase()
+    .substring(0, maxLen)
+    .replace(/-$/g, '')                                        // no trailing hyphen after truncation
+    || 'unknown';
+}
+
 // ── In-Memory State ──
 const DATA_DIR = path.join(__dirname, 'data');
 const MASTER_RESUME_PATH = path.join(DATA_DIR, 'master-resume.json');
@@ -150,7 +167,17 @@ Expected format:
 Expected format:
 {"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "bullets": ["...", "...", "..."]}]}`,
 
-  coverLetter: `You are an expert cover letter writer. Write a tailored cover letter using the candidate's background and the job's exact keywords and phrases. Mirror the tone and language of the job posting. The letter should feel human, specific, and confident — not generic. Use the STAR method for one key achievement. Length: 3 paragraphs. Tone: [TONE_SELECTION]. Return only the cover letter text.`
+  coverLetter: `You are an expert cover letter writer. Write a tailored cover letter using the candidate's background and the job's exact keywords and phrases. Mirror the tone and language of the job posting. The letter should feel human, specific, and confident — not generic. Use the STAR method for one key achievement. Length: 3 paragraphs. Tone: [TONE_SELECTION].
+
+CRITICAL RULES:
+- Use the candidate's REAL NAME from their resume — NEVER write [Your Name] or [Candidate Name]
+- Use the REAL COMPANY NAME provided — NEVER write [Company Name] or [Employer's Name]
+- Use the REAL JOB TITLE provided — NEVER write [Job Title] or [Position]
+- Use TODAY'S DATE provided — NEVER write [Date] or [Today's Date]
+- Address the letter to "Dear Hiring Manager," if no specific name is given
+- NEVER use placeholder brackets like [ ] anywhere in the output
+
+Return only the cover letter text, ready to send with no placeholders.`
 };
 
 // ── OpenAI Calls ──
@@ -221,17 +248,110 @@ async function rewriteResume(resumeText, keywords) {
   }
 }
 
-async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone = 'Professional') {
+function extractCandidateName(resumeText) {
+  if (!resumeText) return '';
+  // The name is almost always the first non-empty line of a resume
+  const lines = resumeText.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // Skip lines that look like headers, addresses, or contact info only
+    if (/^(resume|curriculum|cv|objective|summary|profile)/i.test(line)) continue;
+    if (/^\+?\d[\d\s\-().]{7,}$/.test(line)) continue; // phone number only
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(line)) continue; // email only
+    // A name line is typically short (under 50 chars) and mostly letters
+    if (line.length < 50 && /^[A-Za-z\s.\-']+$/.test(line) && line.split(/\s+/).length <= 5) {
+      console.log('[Server] Extracted candidate name:', line);
+      return line;
+    }
+  }
+  return '';
+}
+
+function replacePlaceholders(text, candidateName, companyName, jobTitle) {
+  const today = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  return text
+    // Name placeholders
+    .replace(/\[Your (?:Full )?Name\]/gi, candidateName)
+    .replace(/\[Candidate(?:'s)? Name\]/gi, candidateName)
+    .replace(/\[First (?:and )?Last Name\]/gi, candidateName)
+    .replace(/\[Name\]/gi, candidateName)
+    // Company placeholders
+    .replace(/\[Company(?:'s)? Name\]/gi, companyName)
+    .replace(/\[Employer(?:'s)? Name\]/gi, companyName)
+    .replace(/\[Organization(?:'s)? Name\]/gi, companyName)
+    .replace(/\[Hiring Company\]/gi, companyName)
+    .replace(/\[Company\]/gi, companyName)
+    // Job title placeholders
+    .replace(/\[Job Title\]/gi, jobTitle)
+    .replace(/\[Position(?: Title)?\]/gi, jobTitle)
+    .replace(/\[Role(?: Title)?\]/gi, jobTitle)
+    // Date placeholders
+    .replace(/\[Today(?:'s)? Date\]/gi, today)
+    .replace(/\[Date\]/gi, today)
+    .replace(/\[Current Date\]/gi, today)
+    // Contact info placeholders — remove the line entirely
+    .replace(/.*\[(?:Your )?(?:Email|Phone|Address|City|State|Zip).*\].*\n?/gi, '')
+    // Catch any remaining bracket placeholders
+    .replace(/\[(?:Your|My|Candidate's?|Insert)\s+[^\]]*\]/gi, '')
+    .trim();
+}
+
+async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone = 'Professional', meta = {}) {
   const prompt = PROMPTS.coverLetter.replace('[TONE_SELECTION]', tone);
   const keywordList = keywords.keywords.map(k => k.keyword).join(', ');
 
-  const raw = await callOpenAI(
-    prompt,
-    `Job Description:\n${jobDescription}\n\n---\nCandidate Summary:\n${resumeSummary}\n\n---\nKey Terms to Include:\n${keywordList}`,
-    'Cover Letter Generation'
+  const candidateName = meta.candidateName || extractCandidateName(meta.resumeText || '');
+  const companyName = meta.companyName || 'the company';
+  const jobTitle = meta.jobTitle || 'the position';
+  const today = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  const personalNote = meta.personalNote || '';
+
+  const contentParts = [
+    `Candidate Name: ${candidateName}`,
+    `Company Name: ${companyName}`,
+    `Job Title: ${jobTitle}`,
+    `Today's Date: ${today}`,
+  ];
+
+  if (personalNote.trim()) {
+    contentParts.push(
+      ``,
+      `---`,
+      `PERSONAL MOTIVATION (weave this naturally into the letter — do not quote it verbatim):`,
+      personalNote.trim()
+    );
+    console.log('[Server] Personal note included in cover letter prompt:', personalNote.trim().substring(0, 80) + '...');
+  }
+
+  contentParts.push(
+    ``,
+    `---`,
+    `Job Description:`,
+    jobDescription,
+    ``,
+    `---`,
+    `Candidate Summary:`,
+    resumeSummary,
+    ``,
+    `---`,
+    `Key Terms to Include:`,
+    keywordList
   );
 
-  return raw.replace(/```\n?/g, '').trim();
+  const userContent = contentParts.join('\n');
+
+  const raw = await callOpenAI(prompt, userContent, 'Cover Letter Generation');
+
+  let cleaned = raw.replace(/```\n?/g, '').trim();
+  cleaned = replacePlaceholders(cleaned, candidateName, companyName, jobTitle);
+
+  console.log('[Server] Cover letter post-processed — remaining brackets:', (cleaned.match(/\[[^\]]+\]/g) || []).length);
+  return cleaned;
 }
 
 // ── Keyword Match Scoring ──
@@ -394,7 +514,13 @@ app.post('/optimize', async (req, res) => {
       fullDescription,
       rewrittenResume.summary,
       keywords,
-      selectedTone
+      selectedTone,
+      {
+        candidateName: extractCandidateName(masterResume.text),
+        companyName: companyName || 'the company',
+        jobTitle: jobTitle || 'the position',
+        resumeText: masterResume.text
+      }
     );
     console.log('[Server] Cover letter generated, length:', coverLetterText.length);
 
@@ -408,11 +534,12 @@ app.post('/optimize', async (req, res) => {
       h => h.companyName === companyName && h.jobTitle === jobTitle
     ).length + 1;
 
-    const safeCompany = (companyName || 'company').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-    const safeTitle = (jobTitle || 'role').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const safeCompany = sanitizeForFilename(companyName);
+    const safeTitle = sanitizeForFilename(jobTitle);
 
     const resumeFileName = `resume-v${version}-${safeCompany}-${safeTitle}.docx`;
     const coverLetterFileName = `coverletter-v${version}-${safeCompany}-${safeTitle}.docx`;
+    console.log(`[Server] Filenames: ${resumeFileName}, ${coverLetterFileName}`);
 
     const resumeFilePath = path.join(__dirname, 'output', resumeFileName);
     const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
@@ -478,8 +605,8 @@ app.post('/optimize', async (req, res) => {
 
 // Re-generate cover letter with different tone
 app.post('/regenerate-cover-letter', async (req, res) => {
-  const { optimizationId, tone } = req.body;
-  console.log(`[Server] Regenerating cover letter for ${optimizationId} with tone: ${tone}`);
+  const { optimizationId, tone, personalNote } = req.body;
+  console.log(`[Server] Regenerating cover letter for ${optimizationId} with tone: ${tone}, personalNote: ${personalNote ? personalNote.length + ' chars' : 'none'}`);
 
   const entry = optimizationHistory.find(h => h.id === optimizationId);
   if (!entry) {
@@ -491,11 +618,18 @@ app.post('/regenerate-cover-letter', async (req, res) => {
       entry.fullDescription,
       entry.rewrittenResume.summary,
       { keywords: entry.keywords },
-      tone
+      tone,
+      {
+        candidateName: extractCandidateName(masterResume?.text || entry.originalResumeText || ''),
+        companyName: entry.companyName || 'the company',
+        jobTitle: entry.jobTitle || 'the position',
+        resumeText: masterResume?.text || entry.originalResumeText || '',
+        personalNote: personalNote || ''
+      }
     );
 
-    const safeCompany = (entry.companyName).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-    const safeTitle = (entry.jobTitle).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const safeCompany = sanitizeForFilename(entry.companyName);
+    const safeTitle = sanitizeForFilename(entry.jobTitle);
     const coverLetterFileName = `coverletter-${tone.toLowerCase()}-${safeCompany}-${safeTitle}.docx`;
     const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
 
@@ -504,6 +638,7 @@ app.post('/regenerate-cover-letter', async (req, res) => {
 
     entry.coverLetterText = coverLetterText;
     entry.tone = tone;
+    entry.personalNote = personalNote || '';
     entry.coverLetterPath = `/output/${coverLetterFileName}`;
     entry.coverLetterFileName = coverLetterFileName;
     saveHistory();
