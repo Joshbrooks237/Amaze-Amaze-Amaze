@@ -1,0 +1,533 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const mammoth = require('mammoth');
+const { execSync } = require('child_process');
+const OpenAI = require('openai');
+const { generateResumeDOCX, generateCoverLetterDOCX } = require('./docxGenerator');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// ── OpenAI Setup ──
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// ── Middleware ──
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use('/output', express.static(path.join(__dirname, 'output')));
+
+// ── File Upload Config ──
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `resume-upload-${Date.now()}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.docx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and DOCX files are allowed'));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
+
+// ── In-Memory State ──
+const DATA_DIR = path.join(__dirname, 'data');
+const MASTER_RESUME_PATH = path.join(DATA_DIR, 'master-resume.json');
+const HISTORY_PATH = path.join(DATA_DIR, 'optimization-history.json');
+
+let masterResume = null;  // { text, fileName, uploadedAt }
+let optimizationHistory = []; // array of past optimizations
+
+// Load persisted data on startup
+function loadPersistedData() {
+  try {
+    if (fs.existsSync(MASTER_RESUME_PATH)) {
+      masterResume = JSON.parse(fs.readFileSync(MASTER_RESUME_PATH, 'utf-8'));
+      console.log('[Server] Loaded master resume from disk:', masterResume.fileName);
+    }
+  } catch (err) {
+    console.error('[Server] Failed to load master resume:', err.message);
+  }
+
+  try {
+    if (fs.existsSync(HISTORY_PATH)) {
+      optimizationHistory = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf-8'));
+      console.log('[Server] Loaded optimization history:', optimizationHistory.length, 'entries');
+    }
+  } catch (err) {
+    console.error('[Server] Failed to load history:', err.message);
+  }
+}
+
+function saveHistory() {
+  try {
+    fs.writeFileSync(HISTORY_PATH, JSON.stringify(optimizationHistory, null, 2));
+  } catch (err) {
+    console.error('[Server] Failed to save history:', err.message);
+  }
+}
+
+// ── Resume Parsing ──
+async function parseResume(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  console.log(`[Server] Parsing resume: ${filePath} (${ext})`);
+
+  if (ext === '.docx') {
+    const result = await mammoth.extractRawText({ path: filePath });
+    console.log('[Server] DOCX parsed successfully, length:', result.value.length);
+    return result.value;
+  }
+
+  if (ext === '.pdf') {
+    return parsePDFWithPython(filePath);
+  }
+
+  throw new Error(`Unsupported file type: ${ext}`);
+}
+
+function parsePDFWithPython(filePath) {
+  const pythonScript = `
+import sys, json
+try:
+    import pdfplumber
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pdfplumber', '-q'])
+    import pdfplumber
+
+text_parts = []
+with pdfplumber.open(sys.argv[1]) as pdf:
+    for page in pdf.pages:
+        t = page.extract_text()
+        if t:
+            text_parts.append(t)
+
+print(json.dumps({"text": "\\n".join(text_parts)}))
+`;
+
+  const scriptPath = path.join(__dirname, '_parse_pdf.py');
+  fs.writeFileSync(scriptPath, pythonScript);
+
+  try {
+    const result = execSync(`python3 "${scriptPath}" "${filePath}"`, {
+      encoding: 'utf-8',
+      timeout: 30000
+    });
+    const parsed = JSON.parse(result.trim());
+    console.log('[Server] PDF parsed successfully, length:', parsed.text.length);
+    return parsed.text;
+  } catch (err) {
+    console.error('[Server] PDF parsing failed:', err.message);
+    throw new Error('PDF parsing failed. Ensure python3 and pdfplumber are installed.');
+  } finally {
+    try { fs.unlinkSync(scriptPath); } catch (_) {}
+  }
+}
+
+// ── AI Prompts (Phase 4) ──
+const PROMPTS = {
+  keywordExtraction: `You are an ATS (Applicant Tracking System) expert. Analyze this job description and extract the top 20 most important keywords and phrases that an ATS would scan for. Categorize each as: technical_skill, soft_skill, qualification, or industry_term. Also assign an importance score 1-10. Return ONLY valid JSON, no markdown, no explanation.
+
+Expected format:
+{"keywords": [{"keyword": "...", "category": "technical_skill|soft_skill|qualification|industry_term", "importance": 1-10}]}`,
+
+  resumeRewrite: `You are an expert resume writer and ATS optimization specialist. You will be given a candidate's master resume and a list of ATS keywords from a job posting. Rewrite the following resume sections to naturally incorporate as many keywords as possible without keyword stuffing. Keep all facts true — do not invent experience or skills. Preserve the candidate's voice. Rewrite: summary, skills list, and top 3 bullet points for each role. Return ONLY valid JSON with keys: summary, skills, experience.
+
+Expected format:
+{"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "bullets": ["...", "...", "..."]}]}`,
+
+  coverLetter: `You are an expert cover letter writer. Write a tailored cover letter using the candidate's background and the job's exact keywords and phrases. Mirror the tone and language of the job posting. The letter should feel human, specific, and confident — not generic. Use the STAR method for one key achievement. Length: 3 paragraphs. Tone: [TONE_SELECTION]. Return only the cover letter text.`
+};
+
+// ── OpenAI Calls ──
+async function callOpenAI(systemPrompt, userContent, label) {
+  console.log(`[AI] Starting ${label}...`);
+  const startTime = Date.now();
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent }
+      ],
+      temperature: 0.7,
+      max_tokens: 4000
+    });
+
+    const content = response.choices[0].message.content;
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[AI] ${label} completed in ${elapsed}s (${content.length} chars)`);
+    return content;
+  } catch (err) {
+    console.error(`[AI] ${label} failed:`, err.message);
+    if (err.code === 'insufficient_quota') {
+      throw new Error('OpenAI API quota exceeded. Check your billing.');
+    }
+    if (err.code === 'invalid_api_key') {
+      throw new Error('Invalid OpenAI API key. Set OPENAI_API_KEY environment variable.');
+    }
+    throw new Error(`AI ${label} failed: ${err.message}`);
+  }
+}
+
+async function extractKeywords(jobDescription) {
+  const raw = await callOpenAI(
+    PROMPTS.keywordExtraction,
+    `Job Description:\n${jobDescription}`,
+    'Keyword Extraction'
+  );
+
+  try {
+    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err) {
+    console.error('[AI] Failed to parse keyword JSON:', err.message);
+    throw new Error('AI returned invalid keyword JSON');
+  }
+}
+
+async function rewriteResume(resumeText, keywords) {
+  const keywordList = keywords.keywords
+    .map(k => `${k.keyword} (${k.category}, importance: ${k.importance})`)
+    .join('\n');
+
+  const raw = await callOpenAI(
+    PROMPTS.resumeRewrite,
+    `Master Resume:\n${resumeText}\n\n---\nATS Keywords:\n${keywordList}`,
+    'Resume Rewrite'
+  );
+
+  try {
+    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err) {
+    console.error('[AI] Failed to parse resume JSON:', err.message);
+    throw new Error('AI returned invalid resume JSON');
+  }
+}
+
+async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone = 'Professional') {
+  const prompt = PROMPTS.coverLetter.replace('[TONE_SELECTION]', tone);
+  const keywordList = keywords.keywords.map(k => k.keyword).join(', ');
+
+  const raw = await callOpenAI(
+    prompt,
+    `Job Description:\n${jobDescription}\n\n---\nCandidate Summary:\n${resumeSummary}\n\n---\nKey Terms to Include:\n${keywordList}`,
+    'Cover Letter Generation'
+  );
+
+  return raw.replace(/```\n?/g, '').trim();
+}
+
+// ── Keyword Match Scoring ──
+function calculateMatchScore(originalResume, keywords, rewrittenResume) {
+  const allKeywords = keywords.keywords || [];
+  const rewrittenText = JSON.stringify(rewrittenResume).toLowerCase();
+  const originalText = originalResume.toLowerCase();
+
+  let matched = 0;
+  let originalMatched = 0;
+  const details = allKeywords.map(k => {
+    const kw = k.keyword.toLowerCase();
+    const inRewritten = rewrittenText.includes(kw);
+    const inOriginal = originalText.includes(kw);
+    if (inRewritten) matched++;
+    if (inOriginal) originalMatched++;
+    return {
+      keyword: k.keyword,
+      category: k.category,
+      importance: k.importance,
+      inOriginalResume: inOriginal,
+      inTailoredResume: inRewritten
+    };
+  });
+
+  return {
+    matchScore: allKeywords.length > 0 ? Math.round((matched / allKeywords.length) * 100) : 0,
+    originalScore: allKeywords.length > 0 ? Math.round((originalMatched / allKeywords.length) * 100) : 0,
+    matched,
+    total: allKeywords.length,
+    details
+  };
+}
+
+// ── Routes ──
+
+// Health check
+app.get('/health', (req, res) => {
+  console.log('[Server] Health check');
+  res.json({
+    status: 'ok',
+    resumeLoaded: !!masterResume,
+    historyCount: optimizationHistory.length,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Upload master resume
+app.post('/upload-resume', upload.single('resume'), async (req, res) => {
+  console.log('[Server] Resume upload request received');
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  try {
+    const text = await parseResume(req.file.path);
+
+    if (!text || text.trim().length < 50) {
+      return res.status(400).json({ error: 'Could not extract enough text from the resume' });
+    }
+
+    masterResume = {
+      text: text.trim(),
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      uploadedAt: new Date().toISOString()
+    };
+
+    fs.writeFileSync(MASTER_RESUME_PATH, JSON.stringify(masterResume, null, 2));
+    console.log('[Server] Master resume saved:', masterResume.fileName, `(${text.length} chars)`);
+
+    res.json({
+      success: true,
+      fileName: masterResume.fileName,
+      textLength: text.length,
+      preview: text.substring(0, 300) + '...'
+    });
+  } catch (err) {
+    console.error('[Server] Resume upload failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get master resume info
+app.get('/resume', (req, res) => {
+  if (!masterResume) {
+    return res.status(404).json({ error: 'No master resume uploaded' });
+  }
+  res.json({
+    fileName: masterResume.fileName,
+    uploadedAt: masterResume.uploadedAt,
+    textLength: masterResume.text.length,
+    preview: masterResume.text.substring(0, 500) + '...'
+  });
+});
+
+// Get optimization history
+app.get('/history', (req, res) => {
+  console.log('[Server] History request, entries:', optimizationHistory.length);
+  res.json(optimizationHistory.map(h => ({
+    id: h.id,
+    jobTitle: h.jobTitle,
+    companyName: h.companyName,
+    matchScore: h.matchScore,
+    originalScore: h.originalScore,
+    optimizedAt: h.optimizedAt,
+    resumePath: h.resumePath,
+    coverLetterPath: h.coverLetterPath,
+    tone: h.tone
+  })));
+});
+
+// Get single optimization detail
+app.get('/history/:id', (req, res) => {
+  const entry = optimizationHistory.find(h => h.id === req.params.id);
+  if (!entry) {
+    return res.status(404).json({ error: 'Optimization not found' });
+  }
+  res.json(entry);
+});
+
+// Main optimize endpoint
+app.post('/optimize', async (req, res) => {
+  console.log('[Server] ═══════════════════════════════════════');
+  console.log('[Server] Optimize request received');
+
+  if (!masterResume) {
+    console.error('[Server] No master resume loaded');
+    return res.status(400).json({ error: 'No master resume uploaded. Upload one first at POST /upload-resume' });
+  }
+
+  const { jobTitle, companyName, fullDescription, requiredSkills, preferredQualifications, sourceUrl, tone } = req.body;
+
+  if (!fullDescription || fullDescription.length < 50) {
+    return res.status(400).json({ error: 'Job description is too short or missing' });
+  }
+
+  const selectedTone = tone || 'Professional';
+  const optimizationId = `opt-${Date.now()}`;
+  console.log(`[Server] Optimization ID: ${optimizationId}`);
+  console.log(`[Server] Job: ${jobTitle} at ${companyName}`);
+  console.log(`[Server] Description length: ${fullDescription.length} chars`);
+  console.log(`[Server] Tone: ${selectedTone}`);
+
+  try {
+    // Step 1: Extract ATS keywords
+    console.log('[Server] Step 1/4: Extracting keywords...');
+    const keywords = await extractKeywords(fullDescription);
+    console.log(`[Server] Extracted ${keywords.keywords?.length || 0} keywords`);
+
+    // Step 2: Rewrite resume
+    console.log('[Server] Step 2/4: Rewriting resume...');
+    const rewrittenResume = await rewriteResume(masterResume.text, keywords);
+    console.log('[Server] Resume rewritten successfully');
+
+    // Step 3: Generate cover letter
+    console.log('[Server] Step 3/4: Generating cover letter...');
+    const coverLetterText = await generateCoverLetter(
+      fullDescription,
+      rewrittenResume.summary,
+      keywords,
+      selectedTone
+    );
+    console.log('[Server] Cover letter generated, length:', coverLetterText.length);
+
+    // Calculate match scores
+    const scoring = calculateMatchScore(masterResume.text, keywords, rewrittenResume);
+    console.log(`[Server] Match score: ${scoring.matchScore}% (original: ${scoring.originalScore}%)`);
+
+    // Step 4: Generate DOCX files
+    console.log('[Server] Step 4/4: Generating DOCX files...');
+    const version = optimizationHistory.filter(
+      h => h.companyName === companyName && h.jobTitle === jobTitle
+    ).length + 1;
+
+    const safeCompany = (companyName || 'company').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const safeTitle = (jobTitle || 'role').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+
+    const resumeFileName = `resume-v${version}-${safeCompany}-${safeTitle}.docx`;
+    const coverLetterFileName = `coverletter-v${version}-${safeCompany}-${safeTitle}.docx`;
+
+    const resumeFilePath = path.join(__dirname, 'output', resumeFileName);
+    const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
+
+    const keywordStrings = (keywords.keywords || []).map(k => k.keyword);
+
+    await generateResumeDOCX(rewrittenResume, keywordStrings, jobTitle, companyName, resumeFilePath);
+    console.log('[Server] Resume DOCX saved:', resumeFileName);
+
+    await generateCoverLetterDOCX(coverLetterText, keywordStrings, jobTitle, companyName, coverLetterFilePath);
+    console.log('[Server] Cover letter DOCX saved:', coverLetterFileName);
+
+    // Build history entry
+    const historyEntry = {
+      id: optimizationId,
+      jobTitle: jobTitle || 'Unknown Title',
+      companyName: companyName || 'Unknown Company',
+      fullDescription,
+      requiredSkills: requiredSkills || [],
+      preferredQualifications: preferredQualifications || [],
+      sourceUrl,
+      tone: selectedTone,
+      keywords: keywords.keywords || [],
+      rewrittenResume,
+      originalResumeText: masterResume.text,
+      coverLetterText,
+      matchScore: scoring.matchScore,
+      originalScore: scoring.originalScore,
+      keywordDetails: scoring.details,
+      resumePath: `/output/${resumeFileName}`,
+      coverLetterPath: `/output/${coverLetterFileName}`,
+      resumeFileName,
+      coverLetterFileName,
+      optimizedAt: new Date().toISOString()
+    };
+
+    optimizationHistory.unshift(historyEntry);
+    saveHistory();
+
+    console.log('[Server] ═══════════════════════════════════════');
+    console.log('[Server] Optimization complete!');
+
+    res.json({
+      id: optimizationId,
+      matchScore: scoring.matchScore,
+      originalScore: scoring.originalScore,
+      keywords: keywords.keywords,
+      keywordDetails: scoring.details,
+      rewrittenResume,
+      coverLetterText,
+      resumePath: `/output/${resumeFileName}`,
+      coverLetterPath: `/output/${coverLetterFileName}`,
+      resumeFileName,
+      coverLetterFileName
+    });
+
+  } catch (err) {
+    console.error('[Server] Optimization failed:', err.message);
+    console.error(err.stack);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Re-generate cover letter with different tone
+app.post('/regenerate-cover-letter', async (req, res) => {
+  const { optimizationId, tone } = req.body;
+  console.log(`[Server] Regenerating cover letter for ${optimizationId} with tone: ${tone}`);
+
+  const entry = optimizationHistory.find(h => h.id === optimizationId);
+  if (!entry) {
+    return res.status(404).json({ error: 'Optimization not found' });
+  }
+
+  try {
+    const coverLetterText = await generateCoverLetter(
+      entry.fullDescription,
+      entry.rewrittenResume.summary,
+      { keywords: entry.keywords },
+      tone
+    );
+
+    const safeCompany = (entry.companyName).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const safeTitle = (entry.jobTitle).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    const coverLetterFileName = `coverletter-${tone.toLowerCase()}-${safeCompany}-${safeTitle}.docx`;
+    const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
+
+    const keywordStrings = entry.keywords.map(k => k.keyword);
+    await generateCoverLetterDOCX(coverLetterText, keywordStrings, entry.jobTitle, entry.companyName, coverLetterFilePath);
+
+    entry.coverLetterText = coverLetterText;
+    entry.tone = tone;
+    entry.coverLetterPath = `/output/${coverLetterFileName}`;
+    entry.coverLetterFileName = coverLetterFileName;
+    saveHistory();
+
+    console.log('[Server] Cover letter regenerated successfully');
+    res.json({
+      coverLetterText,
+      coverLetterPath: `/output/${coverLetterFileName}`,
+      coverLetterFileName
+    });
+  } catch (err) {
+    console.error('[Server] Cover letter regeneration failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Start Server ──
+loadPersistedData();
+
+app.listen(PORT, () => {
+  console.log(`[Server] ══════════════════════════════════════════`);
+  console.log(`[Server] Indeeeed Optimizer API running on port ${PORT}`);
+  console.log(`[Server] Health:  http://localhost:${PORT}/health`);
+  console.log(`[Server] Resume:  ${masterResume ? '✅ Loaded' : '❌ Not uploaded'}`);
+  console.log(`[Server] History: ${optimizationHistory.length} entries`);
+  console.log(`[Server] ══════════════════════════════════════════`);
+});
