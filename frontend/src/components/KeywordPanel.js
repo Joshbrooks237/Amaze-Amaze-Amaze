@@ -9,6 +9,7 @@ const CATEGORY_LABELS = {
 
 export default function KeywordPanel({ keywords = [], keywordDetails = [] }) {
   const [filter, setFilter] = useState('all');
+  const [view, setView] = useState('all');
 
   const detailMap = {};
   for (const d of keywordDetails) {
@@ -17,27 +18,38 @@ export default function KeywordPanel({ keywords = [], keywordDetails = [] }) {
 
   const enriched = keywords.map(k => ({
     ...k,
+    type: k.type || detailMap[k.keyword.toLowerCase()]?.type || 'keyword',
     inOriginal: detailMap[k.keyword.toLowerCase()]?.inOriginalResume ?? false,
     inTailored: detailMap[k.keyword.toLowerCase()]?.inTailoredResume ?? false,
   }));
 
+  const singleKeywords = enriched.filter(k => k.type !== 'phrase');
+  const phrases = enriched.filter(k => k.type === 'phrase');
+
+  const viewItems = view === 'keywords' ? singleKeywords
+    : view === 'phrases' ? phrases
+    : enriched;
+
   const filtered = filter === 'all'
-    ? enriched
+    ? viewItems
     : filter === 'gap'
-      ? enriched.filter(k => !k.inOriginal && k.inTailored)
+      ? viewItems.filter(k => !k.inOriginal && k.inTailored)
       : filter === 'missing'
-        ? enriched.filter(k => !k.inTailored)
-        : enriched.filter(k => k.category === filter);
+        ? viewItems.filter(k => !k.inTailored)
+        : viewItems.filter(k => k.category === filter);
 
-  const gapCount = enriched.filter(k => !k.inOriginal && k.inTailored).length;
-  const missingCount = enriched.filter(k => !k.inTailored).length;
+  const gapCount = viewItems.filter(k => !k.inOriginal && k.inTailored).length;
+  const missingCount = viewItems.filter(k => !k.inTailored).length;
 
-  const categories = [...new Set(keywords.map(k => k.category))];
+  const categories = [...new Set(viewItems.map(k => k.category))];
+
+  const phraseMatchCount = phrases.filter(k => k.inTailored).length;
+  const phraseOriginalCount = phrases.filter(k => k.inOriginal).length;
 
   return (
     <div className="space-y-5">
-      {/* Gap Analysis Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <SummaryCard
           icon="✅"
           label="In Original Resume"
@@ -48,22 +60,81 @@ export default function KeywordPanel({ keywords = [], keywordDetails = [] }) {
         <SummaryCard
           icon="🔧"
           label="Added by AI"
-          count={gapCount}
+          count={enriched.filter(k => !k.inOriginal && k.inTailored).length}
           total={enriched.length}
           color="text-primary-light"
         />
         <SummaryCard
           icon="⚠️"
           label="Still Missing"
-          count={missingCount}
+          count={enriched.filter(k => !k.inTailored).length}
           total={enriched.length}
-          color={missingCount > 0 ? 'text-warning' : 'text-success'}
+          color={enriched.some(k => !k.inTailored) ? 'text-warning' : 'text-success'}
         />
+        <SummaryCard
+          icon="🔗"
+          label="Phrases Matched"
+          count={phraseMatchCount}
+          total={phrases.length}
+          color={phrases.length > 0 && phraseMatchCount === phrases.length ? 'text-success' : 'text-accent'}
+        />
+      </div>
+
+      {/* Phrase Highlight Strip */}
+      {phrases.length > 0 && (
+        <div className="bg-surface-raised border border-accent/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm">🔗</span>
+            <h3 className="text-sm font-bold text-accent">ATS Phrases</h3>
+            <span className="text-xs text-slate-500">
+              {phraseMatchCount}/{phrases.length} matched in tailored resume
+              {phraseOriginalCount > 0 && ` (${phraseOriginalCount} were already in original)`}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {phrases.map((p, i) => (
+              <span
+                key={i}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors
+                  ${p.inTailored
+                    ? 'bg-success/10 text-success border-success/30'
+                    : p.inOriginal
+                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                      : 'bg-danger/10 text-danger border-danger/30'
+                  }`}
+                title={`${p.keyword} — importance: ${p.importance}/10 | ${p.inOriginal ? 'in original' : 'not in original'} | ${p.inTailored ? 'in tailored' : 'missing from tailored'}`}
+              >
+                {p.inTailored ? '✓ ' : p.inOriginal ? '○ ' : '✗ '}
+                {p.keyword}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* View Toggle */}
+      <div className="flex items-center gap-4">
+        <div className="flex gap-1 bg-surface-raised rounded-lg p-1 border border-surface-overlay">
+          {[
+            { key: 'all', label: `All (${enriched.length})` },
+            { key: 'keywords', label: `Keywords (${singleKeywords.length})` },
+            { key: 'phrases', label: `Phrases (${phrases.length})` },
+          ].map(v => (
+            <button
+              key={v.key}
+              onClick={() => { setView(v.key); setFilter('all'); }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors
+                ${view === v.key ? 'bg-primary text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <FilterButton active={filter === 'all'} onClick={() => setFilter('all')} label={`All (${enriched.length})`} />
+        <FilterButton active={filter === 'all'} onClick={() => setFilter('all')} label={`All (${viewItems.length})`} />
         <FilterButton active={filter === 'gap'} onClick={() => setFilter('gap')} label={`Gap Filled (${gapCount})`} />
         <FilterButton active={filter === 'missing'} onClick={() => setFilter('missing')} label={`Missing (${missingCount})`} />
         {categories.map(cat => (
@@ -76,12 +147,13 @@ export default function KeywordPanel({ keywords = [], keywordDetails = [] }) {
         ))}
       </div>
 
-      {/* Keyword List */}
+      {/* Table */}
       <div className="bg-surface-raised border border-surface-overlay rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-surface-overlay text-left text-xs text-slate-500 uppercase tracking-wider">
-              <th className="px-5 py-3">Keyword</th>
+              <th className="px-5 py-3">Term</th>
+              <th className="px-5 py-3">Type</th>
               <th className="px-5 py-3">Category</th>
               <th className="px-5 py-3 text-center">Score</th>
               <th className="px-5 py-3 text-center">Original</th>
@@ -91,9 +163,19 @@ export default function KeywordPanel({ keywords = [], keywordDetails = [] }) {
           <tbody>
             {filtered.map((kw, i) => {
               const catStyle = CATEGORY_LABELS[kw.category] || { label: kw.category, color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' };
+              const isPhrase = kw.type === 'phrase';
               return (
                 <tr key={i} className="border-b border-surface-overlay/50 hover:bg-surface-overlay/30 transition-colors">
-                  <td className="px-5 py-3 font-medium text-slate-200">{kw.keyword}</td>
+                  <td className="px-5 py-3 font-medium text-slate-200">
+                    {isPhrase && <span className="text-accent mr-1">&ldquo;</span>}
+                    {kw.keyword}
+                    {isPhrase && <span className="text-accent ml-0.5">&rdquo;</span>}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border ${isPhrase ? 'bg-accent/10 text-accent border-accent/30' : 'bg-slate-500/10 text-slate-400 border-slate-500/30'}`}>
+                      {isPhrase ? 'Phrase' : 'Keyword'}
+                    </span>
+                  </td>
                   <td className="px-5 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full border ${catStyle.color}`}>
                       {catStyle.label}
@@ -114,7 +196,7 @@ export default function KeywordPanel({ keywords = [], keywordDetails = [] }) {
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div className="p-8 text-center text-sm text-slate-500">No keywords match this filter.</div>
+          <div className="p-8 text-center text-sm text-slate-500">No items match this filter.</div>
         )}
       </div>
     </div>

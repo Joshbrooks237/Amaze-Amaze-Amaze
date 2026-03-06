@@ -157,12 +157,20 @@ print(json.dumps({"text": "\\n".join(text_parts)}))
 
 // ── AI Prompts (Phase 4) ──
 const PROMPTS = {
-  keywordExtraction: `You are an ATS (Applicant Tracking System) expert. Analyze this job description and extract the top 20 most important keywords and phrases that an ATS would scan for. Categorize each as: technical_skill, soft_skill, qualification, or industry_term. Also assign an importance score 1-10. Return ONLY valid JSON, no markdown, no explanation.
+  keywordExtraction: `You are an ATS (Applicant Tracking System) expert. Analyze this job description and extract TWO types of items:
+
+1. KEYWORDS (single words or short terms, max 2 words): Extract the top 15 most important individual keywords. Examples: "Python", "leadership", "SQL", "compliance".
+
+2. PHRASES (exact multi-word phrases, 3-6 words): Extract the top 10 most important exact phrases that ATS systems scan for as complete units. These should be phrases used verbatim in the job description. Examples: "customer service experience", "attention to detail", "cross-functional team collaboration", "data-driven decision making".
+
+Categorize each as: technical_skill, soft_skill, qualification, or industry_term. Assign an importance score 1-10. Mark each with a "type" field: "keyword" or "phrase".
+
+Return ONLY valid JSON, no markdown, no explanation.
 
 Expected format:
-{"keywords": [{"keyword": "...", "category": "technical_skill|soft_skill|qualification|industry_term", "importance": 1-10}]}`,
+{"keywords": [{"keyword": "...", "category": "technical_skill|soft_skill|qualification|industry_term", "importance": 1-10, "type": "keyword|phrase"}]}`,
 
-  resumeRewrite: `You are an expert resume writer and ATS optimization specialist. You will be given a candidate's master resume and a list of ATS keywords from a job posting. Rewrite the following resume sections to naturally incorporate as many keywords as possible without keyword stuffing. Keep all facts true — do not invent experience or skills. Preserve the candidate's voice. Rewrite: summary, skills list, and top 3 bullet points for each role. Return ONLY valid JSON with keys: summary, skills, experience.
+  resumeRewrite: `You are an expert resume writer and ATS optimization specialist. You will be given a candidate's master resume and a list of ATS keywords AND multi-word phrases from a job posting. Rewrite the following resume sections to naturally incorporate as many as possible without keyword stuffing. Pay special attention to including the EXACT multi-word phrases (marked as "phrase") since ATS systems often scan for these complete phrases, not just individual words. Keep all facts true — do not invent experience or skills. Preserve the candidate's voice. Rewrite: summary, skills list, and top 3 bullet points for each role. Return ONLY valid JSON with keys: summary, skills, experience.
 
 Expected format:
 {"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "bullets": ["...", "...", "..."]}]}`,
@@ -229,13 +237,20 @@ async function extractKeywords(jobDescription) {
 }
 
 async function rewriteResume(resumeText, keywords) {
-  const keywordList = keywords.keywords
-    .map(k => `${k.keyword} (${k.category}, importance: ${k.importance})`)
+  const allItems = keywords.keywords || [];
+  const singleKeywords = allItems.filter(k => k.type !== 'phrase');
+  const phrases = allItems.filter(k => k.type === 'phrase');
+
+  const keywordList = singleKeywords
+    .map(k => `[keyword] ${k.keyword} (${k.category}, importance: ${k.importance})`)
+    .join('\n');
+  const phraseList = phrases
+    .map(k => `[phrase] "${k.keyword}" (${k.category}, importance: ${k.importance})`)
     .join('\n');
 
   const raw = await callOpenAI(
     PROMPTS.resumeRewrite,
-    `Master Resume:\n${resumeText}\n\n---\nATS Keywords:\n${keywordList}`,
+    `Master Resume:\n${resumeText}\n\n---\nATS Keywords:\n${keywordList}\n\n---\nATS Phrases (use these EXACT multi-word phrases):\n${phraseList}`,
     'Resume Rewrite'
   );
 
@@ -356,13 +371,13 @@ async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone
 
 // ── Keyword Match Scoring ──
 function calculateMatchScore(originalResume, keywords, rewrittenResume) {
-  const allKeywords = keywords.keywords || [];
+  const allItems = keywords.keywords || [];
   const rewrittenText = JSON.stringify(rewrittenResume).toLowerCase();
   const originalText = originalResume.toLowerCase();
 
   let matched = 0;
   let originalMatched = 0;
-  const details = allKeywords.map(k => {
+  const details = allItems.map(k => {
     const kw = k.keyword.toLowerCase();
     const inRewritten = rewrittenText.includes(kw);
     const inOriginal = originalText.includes(kw);
@@ -372,16 +387,23 @@ function calculateMatchScore(originalResume, keywords, rewrittenResume) {
       keyword: k.keyword,
       category: k.category,
       importance: k.importance,
+      type: k.type || 'keyword',
       inOriginalResume: inOriginal,
       inTailoredResume: inRewritten
     };
   });
 
+  const phraseDetails = details.filter(d => d.type === 'phrase');
+  const keywordDetails = details.filter(d => d.type !== 'phrase');
+
+  console.log(`[Server] Keyword match: ${keywordDetails.filter(d => d.inTailoredResume).length}/${keywordDetails.length}`);
+  console.log(`[Server] Phrase match: ${phraseDetails.filter(d => d.inTailoredResume).length}/${phraseDetails.length}`);
+
   return {
-    matchScore: allKeywords.length > 0 ? Math.round((matched / allKeywords.length) * 100) : 0,
-    originalScore: allKeywords.length > 0 ? Math.round((originalMatched / allKeywords.length) * 100) : 0,
+    matchScore: allItems.length > 0 ? Math.round((matched / allItems.length) * 100) : 0,
+    originalScore: allItems.length > 0 ? Math.round((originalMatched / allItems.length) * 100) : 0,
     matched,
-    total: allKeywords.length,
+    total: allItems.length,
     details
   };
 }

@@ -213,7 +213,7 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
             <textarea
               value={personalNote}
               onChange={(e) => setPersonalNote(e.target.value)}
-              placeholder='e.g. "I\'ve admired this company\'s mission in renewable energy since college, and this role combines my project management experience with my passion for sustainability."'
+              placeholder={"e.g. \"I've admired this company's mission in renewable energy since college, and this role combines my project management experience with my passion for sustainability.\""}
               rows={3}
               maxLength={500}
               className="w-full bg-surface border border-surface-overlay rounded-lg px-4 py-3 text-sm text-slate-200
