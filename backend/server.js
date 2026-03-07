@@ -586,7 +586,7 @@ app.post('/optimize', async (req, res) => {
 
     const keywordStrings = (keywords.keywords || []).map(k => k.keyword);
 
-    await generateResumeDOCX(rewrittenResume, keywordStrings, jobTitle, companyName, resumeFilePath);
+    await generateResumeDOCX(rewrittenResume, keywordStrings, jobTitle, companyName, resumeFilePath, masterResume.text);
     console.log('[Server] Resume DOCX saved:', resumeFileName);
 
     await generateCoverLetterDOCX(coverLetterText, keywordStrings, jobTitle, companyName, coverLetterFilePath);

@@ -1,25 +1,49 @@
 const {
-  Document, Packer, Paragraph, TextRun, HeadingLevel,
-  AlignmentType, TabStopType, TabStopPosition,
-  Footer, PageNumber, NumberFormat,
-  BorderStyle, SectionType
+  Document, Packer, Paragraph, TextRun,
+  AlignmentType, Footer, BorderStyle
 } = require('docx');
 const fs = require('fs');
 
-// ── Font & Style Constants ──
 const FONT = 'Calibri';
 const FONT_SIZE_NAME = 28;      // 14pt
 const FONT_SIZE_HEADING = 22;   // 11pt
 const FONT_SIZE_BODY = 20;      // 10pt
-const FONT_SIZE_FOOTER = 14;    // 7pt
+const FONT_SIZE_CONTACT = 18;   // 9pt
 const COLOR_PRIMARY = '2557A7';
 const COLOR_TEXT = '1F2937';
 const COLOR_SUBTEXT = '6B7280';
 
 /**
- * Split text around keyword occurrences, producing TextRun segments
- * with matching keywords bolded and highlighted.
+ * Extract candidate contact info from raw resume text.
+ * Returns { name, contactLine } where contactLine is everything
+ * else on the second line (phone, email, location, links).
  */
+function extractContactInfo(resumeText) {
+  if (!resumeText) return { name: '', contactLine: '' };
+
+  const lines = resumeText.split('\n').map(l => l.trim()).filter(Boolean);
+  let name = '';
+  let contactLine = '';
+
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    const line = lines[i];
+    // Skip section headers
+    if (/^(professional\s+summary|core\s+skills|experience|education|objective)/i.test(line)) break;
+    // First qualifying line is the name
+    if (!name && line.length < 60 && /^[A-Za-z\s.\-']+$/.test(line)) {
+      name = line;
+      continue;
+    }
+    // Lines with email, phone, or pipe separators are contact info
+    if (name && (line.includes('@') || line.includes('|') || /\d{3}[\s\-.]?\d{3}[\s\-.]?\d{4}/.test(line))) {
+      contactLine = line;
+      break;
+    }
+  }
+
+  return { name, contactLine };
+}
+
 function createHighlightedRuns(text, keywords, baseFontSize = FONT_SIZE_BODY) {
   if (!keywords || keywords.length === 0) {
     return [new TextRun({ text, font: FONT, size: baseFontSize, color: COLOR_TEXT })];
@@ -71,13 +95,44 @@ function createHighlightedRuns(text, keywords, baseFontSize = FONT_SIZE_BODY) {
 }
 
 /**
- * Generates a tailored resume DOCX with professional formatting,
- * bolded ATS keywords, and optimization footer.
+ * Generates a tailored resume DOCX with candidate name/contact header,
+ * professional formatting, and bolded ATS keywords.
  */
-async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyName, outputPath) {
+async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyName, outputPath, masterResumeText) {
   console.log('[DOCX] Generating resume document...');
 
   const sections = [];
+  const { name, contactLine } = extractContactInfo(masterResumeText);
+  console.log('[DOCX] Contact info — name:', name, '| contact:', contactLine.substring(0, 60));
+
+  // ── Name Header ──
+  if (name) {
+    sections.push(new Paragraph({
+      children: [new TextRun({
+        text: name,
+        font: FONT,
+        size: FONT_SIZE_NAME,
+        bold: true,
+        color: COLOR_TEXT
+      })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 40 }
+    }));
+  }
+
+  // ── Contact Line ──
+  if (contactLine) {
+    sections.push(new Paragraph({
+      children: [new TextRun({
+        text: contactLine,
+        font: FONT,
+        size: FONT_SIZE_CONTACT,
+        color: COLOR_SUBTEXT
+      })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 }
+    }));
+  }
 
   // ── Summary Section ──
   sections.push(
@@ -148,7 +203,6 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
     );
 
     for (const role of experience) {
-      // Role title and company
       sections.push(
         new Paragraph({
           children: [
@@ -170,7 +224,6 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
         })
       );
 
-      // Bullet points
       const bullets = role.bullets || [];
       for (const bullet of bullets) {
         sections.push(
@@ -191,24 +244,8 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
     sections: [{
       properties: {
         page: {
-          margin: { top: 720, bottom: 720, left: 720, right: 720 } // 0.5 inch
+          margin: { top: 720, bottom: 720, left: 720, right: 720 }
         }
-      },
-      footers: {
-        default: new Footer({
-          children: [
-            new Paragraph({
-              children: [new TextRun({
-                text: `Optimized for: ${jobTitle || 'Position'} at ${companyName || 'Company'}`,
-                font: FONT,
-                size: FONT_SIZE_FOOTER,
-                color: COLOR_SUBTEXT,
-                italics: true
-              })],
-              alignment: AlignmentType.CENTER
-            })
-          ]
-        })
       },
       children: sections
     }]
@@ -220,8 +257,8 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
 }
 
 /**
- * Generates a cover letter DOCX with professional formatting,
- * bolded keywords, and optimization footer.
+ * Generates a cover letter DOCX with professional formatting
+ * and bolded keywords.
  */
 async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, companyName, outputPath) {
   console.log('[DOCX] Generating cover letter document...');
@@ -229,7 +266,6 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
   const paragraphs = coverLetterText.split('\n\n').filter(p => p.trim());
   const children = [];
 
-  // Date
   children.push(
     new Paragraph({
       children: [new TextRun({
@@ -242,7 +278,6 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
     })
   );
 
-  // Greeting — if not already present in text
   if (paragraphs.length > 0 && !paragraphs[0].toLowerCase().startsWith('dear')) {
     children.push(
       new Paragraph({
@@ -267,7 +302,6 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
     );
   }
 
-  // Closing — if not already present
   const lastPara = paragraphs[paragraphs.length - 1] || '';
   if (!lastPara.toLowerCase().includes('sincerely') && !lastPara.toLowerCase().includes('regards')) {
     children.push(
@@ -287,24 +321,8 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
     sections: [{
       properties: {
         page: {
-          margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } // 1 inch
+          margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 }
         }
-      },
-      footers: {
-        default: new Footer({
-          children: [
-            new Paragraph({
-              children: [new TextRun({
-                text: `Optimized for: ${jobTitle || 'Position'} at ${companyName || 'Company'}`,
-                font: FONT,
-                size: FONT_SIZE_FOOTER,
-                color: COLOR_SUBTEXT,
-                italics: true
-              })],
-              alignment: AlignmentType.CENTER
-            })
-          ]
-        })
       },
       children
     }]
