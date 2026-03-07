@@ -100,22 +100,32 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
           <h2 className="text-xl font-bold text-slate-200">{data.jobTitle}</h2>
           <p className="text-sm text-slate-400">{data.companyName}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <a
             href={getDownloadUrl(data.resumePath)}
             download={data.resumeFileName}
             className="px-4 py-2.5 text-sm font-semibold bg-primary text-white rounded-lg
                        hover:bg-primary-light transition-colors flex items-center gap-2"
           >
-            <span>📄</span> Download Resume
+            <span>📄</span> Resume DOCX
           </a>
+          {data.resumePdfPath && (
+            <a
+              href={getDownloadUrl(data.resumePdfPath)}
+              download={data.resumePdfFileName}
+              className="px-4 py-2.5 text-sm font-semibold bg-red-600 text-white rounded-lg
+                         hover:bg-red-500 transition-colors flex items-center gap-2"
+            >
+              <span>📕</span> Resume PDF
+            </a>
+          )}
           <a
             href={getDownloadUrl(data.coverLetterPath)}
             download={data.coverLetterFileName}
             className="px-4 py-2.5 text-sm font-semibold bg-surface-raised text-slate-200 rounded-lg
                        border border-surface-overlay hover:bg-surface-overlay transition-colors flex items-center gap-2"
           >
-            <span>✉️</span> Download Cover Letter
+            <span>✉️</span> Cover Letter
           </a>
         </div>
       </div>

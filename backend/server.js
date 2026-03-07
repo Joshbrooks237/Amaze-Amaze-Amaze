@@ -8,6 +8,7 @@ const mammoth = require('mammoth');
 const { execSync } = require('child_process');
 const OpenAI = require('openai');
 const { generateResumeDOCX, generateCoverLetterDOCX } = require('./docxGenerator');
+const { generateResumePDF } = require('./pdfGenerator');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -578,16 +579,21 @@ app.post('/optimize', async (req, res) => {
     const safeTitle = sanitizeForFilename(jobTitle);
 
     const resumeFileName = `resume-v${version}-${safeCompany}-${safeTitle}.docx`;
+    const resumePdfFileName = `resume-v${version}-${safeCompany}-${safeTitle}.pdf`;
     const coverLetterFileName = `coverletter-v${version}-${safeCompany}-${safeTitle}.docx`;
-    console.log(`[Server] Filenames: ${resumeFileName}, ${coverLetterFileName}`);
+    console.log(`[Server] Filenames: ${resumeFileName}, ${resumePdfFileName}, ${coverLetterFileName}`);
 
     const resumeFilePath = path.join(__dirname, 'output', resumeFileName);
+    const resumePdfFilePath = path.join(__dirname, 'output', resumePdfFileName);
     const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
 
     const keywordStrings = (keywords.keywords || []).map(k => k.keyword);
 
     await generateResumeDOCX(rewrittenResume, keywordStrings, jobTitle, companyName, resumeFilePath, masterResume.text);
     console.log('[Server] Resume DOCX saved:', resumeFileName);
+
+    await generateResumePDF(rewrittenResume, keywordStrings, resumePdfFilePath, masterResume.text);
+    console.log('[Server] Resume PDF saved:', resumePdfFileName);
 
     await generateCoverLetterDOCX(coverLetterText, keywordStrings, jobTitle, companyName, coverLetterFilePath);
     console.log('[Server] Cover letter DOCX saved:', coverLetterFileName);
@@ -610,8 +616,10 @@ app.post('/optimize', async (req, res) => {
       originalScore: scoring.originalScore,
       keywordDetails: scoring.details,
       resumePath: `/output/${resumeFileName}`,
+      resumePdfPath: `/output/${resumePdfFileName}`,
       coverLetterPath: `/output/${coverLetterFileName}`,
       resumeFileName,
+      resumePdfFileName,
       coverLetterFileName,
       optimizedAt: new Date().toISOString()
     };
@@ -631,8 +639,10 @@ app.post('/optimize', async (req, res) => {
       rewrittenResume,
       coverLetterText,
       resumePath: `/output/${resumeFileName}`,
+      resumePdfPath: `/output/${resumePdfFileName}`,
       coverLetterPath: `/output/${coverLetterFileName}`,
       resumeFileName,
+      resumePdfFileName,
       coverLetterFileName
     });
 
