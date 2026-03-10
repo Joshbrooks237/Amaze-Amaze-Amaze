@@ -1,7 +1,9 @@
 (function () {
   'use strict';
 
-  const BACKEND_URL = 'http://localhost:3001';
+  const BACKEND_URL = (typeof INDEEEED_CONFIG !== 'undefined' && INDEEEED_CONFIG.API_URL)
+    ? INDEEEED_CONFIG.API_URL
+    : 'http://localhost:3001';
   const INIT_DELAY = 2000;
   const RETRY_INTERVAL = 3000;
   const MAX_RETRIES = 10;
@@ -377,9 +379,9 @@
       console.error('[Indeeeed] Optimization failed:', error);
 
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        showToast('Cannot reach backend. Is the server running at localhost:3001?', 'error', 6000);
+        showToast('Cannot reach backend. Is the server running?', 'error', 6000);
       } else if (error.message.includes('No master resume')) {
-        showToast('Upload your resume first at http://localhost:3000', 'error', 6000);
+        showToast('Upload your resume first on the dashboard', 'error', 6000);
       } else {
         showToast(`Optimization failed: ${error.message}`, 'error', 5000);
       }

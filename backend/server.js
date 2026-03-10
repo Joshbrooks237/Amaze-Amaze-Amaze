@@ -18,6 +18,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// ── Ensure required directories exist (Railway ephemeral filesystem) ──
+['output', 'uploads', 'data'].forEach(dir => {
+  const dirPath = path.join(__dirname, dir);
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+});
+
 // ── Middleware ──
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));

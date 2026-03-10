@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkCurrentPage();
 
   document.getElementById('open-dashboard').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'http://localhost:3000' });
+    chrome.tabs.create({ url: INDEEEED_CONFIG.DASHBOARD_URL });
   });
 
   document.getElementById('check-connection').addEventListener('click', () => {
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function checkBackendStatus() {
-  fetch('http://localhost:3001/health')
+  fetch(`${INDEEEED_CONFIG.API_URL}/health`)
     .then(res => res.json())
     .then(data => {
       setStatus('backend', 'online', `Backend online — ${data.resumeLoaded ? 'Resume loaded' : 'No resume uploaded'}`);
