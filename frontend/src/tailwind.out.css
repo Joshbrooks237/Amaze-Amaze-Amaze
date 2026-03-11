@@ -981,12 +981,12 @@ video {
   border-color: rgb(255 255 255 / 0.3);
 }
 
-.border-yellow-600\/40 {
-  border-color: rgb(202 138 4 / 0.4);
-}
-
 .border-yellow-600\/30 {
   border-color: rgb(202 138 4 / 0.3);
+}
+
+.border-yellow-600\/40 {
+  border-color: rgb(202 138 4 / 0.4);
 }
 
 .border-primary {
@@ -1058,6 +1058,11 @@ video {
   background-color: rgb(168 85 247 / 0.2);
 }
 
+.bg-red-600 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(220 38 38 / var(--tw-bg-opacity, 1));
+}
+
 .bg-slate-500\/10 {
   background-color: rgb(100 116 139 / 0.1);
 }
@@ -1097,11 +1102,6 @@ video {
 .bg-warning {
   --tw-bg-opacity: 1;
   background-color: rgb(234 179 8 / var(--tw-bg-opacity, 1));
-}
-
-.bg-red-600 {
-  --tw-bg-opacity: 1;
-  background-color: rgb(220 38 38 / var(--tw-bg-opacity, 1));
 }
 
 .bg-yellow-900\/30 {
@@ -1255,6 +1255,11 @@ video {
   padding-bottom: 0.75rem;
 }
 
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
 .py-6 {
   padding-top: 1.5rem;
   padding-bottom: 1.5rem;
@@ -1263,11 +1268,6 @@ video {
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
-}
-
-.py-4 {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
 }
 
 .px-1\.5 {
@@ -1553,6 +1553,11 @@ body {
   background-color: rgb(59 130 246 / var(--tw-bg-opacity, 1));
 }
 
+.hover\:bg-red-500:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(239 68 68 / var(--tw-bg-opacity, 1));
+}
+
 .hover\:bg-surface-overlay:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(51 65 85 / var(--tw-bg-opacity, 1));
@@ -1564,11 +1569,6 @@ body {
 
 .hover\:bg-surface-overlay\/50:hover {
   background-color: rgb(51 65 85 / 0.5);
-}
-
-.hover\:bg-red-500:hover {
-  --tw-bg-opacity: 1;
-  background-color: rgb(239 68 68 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:bg-danger\/10:hover {

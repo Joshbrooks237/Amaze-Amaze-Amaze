@@ -31,7 +31,7 @@ function App() {
 
       const hist = await getHistory();
       if (signal?.aborted) return;
-      setHistory(hist);
+      setHistory(Array.isArray(hist) ? hist : (hist?.history || []));
     } catch {
       if (!signal?.aborted) setBackendOnline(false);
     } finally {
@@ -46,9 +46,10 @@ function App() {
     return () => { controller.abort(); clearInterval(interval); };
   }, [refreshData]);
 
+  const safeHistory = Array.isArray(history) ? history : [];
   const filteredHistory = filterProfile === 'all'
-    ? history
-    : history.filter(h => h.profileId === filterProfile);
+    ? safeHistory
+    : safeHistory.filter(h => h?.profileId === filterProfile);
 
   return (
     <div className="min-h-screen bg-surface">
