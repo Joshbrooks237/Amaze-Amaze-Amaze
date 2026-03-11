@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import ProfileSwitcher from './components/ProfileSwitcher';
 import HistoryFeed from './components/HistoryFeed';
-import OptimizationDetail from './components/OptimizationDetail';
 import StatusBar from './components/StatusBar';
+import ErrorBoundary from './components/ErrorBoundary';
 import { checkHealth, getProfiles, getHistory } from './api';
+
+const OptimizationDetail = lazy(() => import('./components/OptimizationDetail'));
 
 function App() {
   const [profiles, setProfiles] = useState([]);
@@ -16,28 +18,32 @@ function App() {
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (signal) => {
     try {
-      await checkHealth();
+      const health = await checkHealth();
+      if (signal?.aborted) return;
       setBackendOnline(true);
 
       const profileData = await getProfiles();
+      if (signal?.aborted) return;
       setProfiles(profileData.profiles || []);
       setActiveProfileId(profileData.activeProfileId);
 
       const hist = await getHistory();
+      if (signal?.aborted) return;
       setHistory(hist);
     } catch {
-      setBackendOnline(false);
+      if (!signal?.aborted) setBackendOnline(false);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    refreshData();
-    const interval = setInterval(refreshData, 10000);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    refreshData(controller.signal);
+    const interval = setInterval(() => refreshData(controller.signal), 30000);
+    return () => { controller.abort(); clearInterval(interval); };
   }, [refreshData]);
 
   const filteredHistory = filterProfile === 'all'
@@ -95,22 +101,32 @@ function App() {
             </p>
           </div>
         ) : selectedId ? (
-          <OptimizationDetail
-            optimizationId={selectedId}
-            onBack={() => setSelectedId(null)}
-          />
+          <ErrorBoundary>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="w-8 h-8 border-2 border-primary-light border-t-transparent rounded-full animate-spin" />
+              </div>
+            }>
+              <OptimizationDetail
+                optimizationId={selectedId}
+                onBack={() => setSelectedId(null)}
+              />
+            </Suspense>
+          </ErrorBoundary>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1 space-y-6">
-              <ProfileSwitcher
-                profiles={profiles}
-                activeProfileId={activeProfileId}
-                onProfilesChanged={refreshData}
-              />
+              <ErrorBoundary>
+                <ProfileSwitcher
+                  profiles={profiles}
+                  activeProfileId={activeProfileId}
+                  onProfilesChanged={refreshData}
+                />
+              </ErrorBoundary>
             </div>
             <div className="lg:col-span-2">
               {profiles.length > 1 && (
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
                   <span className="text-xs text-slate-500">Filter:</span>
                   <button
                     onClick={() => setFilterProfile('all')}
@@ -137,10 +153,12 @@ function App() {
                   ))}
                 </div>
               )}
-              <HistoryFeed
-                history={filteredHistory}
-                onSelect={setSelectedId}
-              />
+              <ErrorBoundary>
+                <HistoryFeed
+                  history={filteredHistory}
+                  onSelect={setSelectedId}
+                />
+              </ErrorBoundary>
             </div>
           </div>
         )}
