@@ -77,8 +77,11 @@ function App() {
           <div className="text-center py-20">
             <p className="text-5xl mb-4">⚠️</p>
             <h2 className="text-xl font-bold text-slate-200 mb-2">Backend Offline</h2>
-            <p className="text-slate-400 max-w-md mx-auto">
-              Start the backend server with <code className="text-primary-light bg-surface-raised px-2 py-0.5 rounded">cd backend && npm start</code> then refresh this page.
+            <p className="text-slate-400 max-w-md mx-auto mb-4">
+              Cannot reach the backend API. Check the browser console for the API URL being used.
+            </p>
+            <p className="text-xs text-slate-500 font-mono bg-surface-raised inline-block px-3 py-1.5 rounded-lg">
+              API: {process.env.REACT_APP_API_URL || 'http://localhost:3001 (env var not set)'}
             </p>
           </div>
         ) : selectedId ? (

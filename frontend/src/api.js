@@ -1,5 +1,8 @@
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+console.log('[Indeeeed] API_BASE =', API_BASE);
+console.log('[Indeeeed] REACT_APP_API_URL =', process.env.REACT_APP_API_URL || '(not set — using localhost fallback)');
+
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);
   return res.json();
