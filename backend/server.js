@@ -75,22 +75,58 @@ function sanitizeForFilename(text, maxLen = 20) {
 
 // ── In-Memory State ──
 const DATA_DIR = path.join(__dirname, 'data');
-const MASTER_RESUME_PATH = path.join(DATA_DIR, 'master-resume.json');
+const PROFILES_PATH = path.join(DATA_DIR, 'profiles.json');
 const HISTORY_PATH = path.join(DATA_DIR, 'optimization-history.json');
+const LEGACY_RESUME_PATH = path.join(DATA_DIR, 'master-resume.json');
 
-let masterResume = null;  // { text, fileName, uploadedAt }
-let optimizationHistory = []; // array of past optimizations
+let profiles = [];          // [{ id, name, emoji, text, fileName, filePath, uploadedAt }]
+let activeProfileId = null;
+let optimizationHistory = [];
 
-// Load persisted data on startup
-function loadPersistedData() {
+function getActiveProfile() {
+  return profiles.find(p => p.id === activeProfileId) || null;
+}
+
+// Backward compat: migrate old single-resume to first profile
+function migrateLegacyResume() {
+  if (profiles.length > 0) return;
   try {
-    if (fs.existsSync(MASTER_RESUME_PATH)) {
-      masterResume = JSON.parse(fs.readFileSync(MASTER_RESUME_PATH, 'utf-8'));
-      console.log('[Server] Loaded master resume from disk:', masterResume.fileName);
+    if (fs.existsSync(LEGACY_RESUME_PATH)) {
+      const legacy = JSON.parse(fs.readFileSync(LEGACY_RESUME_PATH, 'utf-8'));
+      if (legacy && legacy.text) {
+        const profile = {
+          id: `profile-${Date.now()}`,
+          name: extractCandidateName(legacy.text) || 'Default',
+          emoji: '📄',
+          text: legacy.text,
+          fileName: legacy.fileName || 'resume.docx',
+          filePath: legacy.filePath || '',
+          uploadedAt: legacy.uploadedAt || new Date().toISOString()
+        };
+        profiles.push(profile);
+        activeProfileId = profile.id;
+        saveProfiles();
+        console.log('[Server] Migrated legacy resume to profile:', profile.name);
+      }
     }
   } catch (err) {
-    console.error('[Server] Failed to load master resume:', err.message);
+    console.error('[Server] Legacy migration failed:', err.message);
   }
+}
+
+function loadPersistedData() {
+  try {
+    if (fs.existsSync(PROFILES_PATH)) {
+      const data = JSON.parse(fs.readFileSync(PROFILES_PATH, 'utf-8'));
+      profiles = data.profiles || [];
+      activeProfileId = data.activeProfileId || (profiles[0]?.id || null);
+      console.log(`[Server] Loaded ${profiles.length} profile(s), active: ${activeProfileId}`);
+    }
+  } catch (err) {
+    console.error('[Server] Failed to load profiles:', err.message);
+  }
+
+  migrateLegacyResume();
 
   try {
     if (fs.existsSync(HISTORY_PATH)) {
@@ -102,6 +138,14 @@ function loadPersistedData() {
   }
 }
 
+function saveProfiles() {
+  try {
+    fs.writeFileSync(PROFILES_PATH, JSON.stringify({ profiles, activeProfileId }, null, 2));
+  } catch (err) {
+    console.error('[Server] Failed to save profiles:', err.message);
+  }
+}
+
 function saveHistory() {
   try {
     fs.writeFileSync(HISTORY_PATH, JSON.stringify(optimizationHistory, null, 2));
@@ -109,6 +153,8 @@ function saveHistory() {
     console.error('[Server] Failed to save history:', err.message);
   }
 }
+
+
 
 // ── Resume Parsing ──
 async function parseResume(filePath) {
@@ -451,20 +497,120 @@ function calculateMatchScore(originalResume, keywords, rewrittenResume) {
   };
 }
 
-// ── Routes ──
+// ── Profile Routes ──
+
+app.get('/profiles', (req, res) => {
+  res.json({
+    profiles: profiles.map(p => ({
+      id: p.id, name: p.name, emoji: p.emoji,
+      fileName: p.fileName, textLength: p.text?.length || 0,
+      uploadedAt: p.uploadedAt
+    })),
+    activeProfileId
+  });
+});
+
+app.post('/profiles', upload.single('resume'), async (req, res) => {
+  const { name, emoji } = req.body;
+  if (!name) return res.status(400).json({ error: 'Profile name is required' });
+  if (!req.file) return res.status(400).json({ error: 'Resume file is required' });
+
+  try {
+    const text = await parseResume(req.file.path);
+    if (!text || text.trim().length < 50) {
+      return res.status(400).json({ error: 'Could not extract enough text from the resume' });
+    }
+
+    const profile = {
+      id: `profile-${Date.now()}`,
+      name: name.trim(),
+      emoji: emoji || '📄',
+      text: text.trim(),
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      uploadedAt: new Date().toISOString()
+    };
+
+    profiles.push(profile);
+    if (!activeProfileId) activeProfileId = profile.id;
+    saveProfiles();
+
+    console.log(`[Server] Profile created: ${profile.name} (${profile.id})`);
+    res.json({ success: true, profile: { id: profile.id, name: profile.name, emoji: profile.emoji, fileName: profile.fileName, textLength: text.length, uploadedAt: profile.uploadedAt } });
+  } catch (err) {
+    console.error('[Server] Profile creation failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/profiles/:id', upload.single('resume'), async (req, res) => {
+  const profile = profiles.find(p => p.id === req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+  const { name, emoji } = req.body;
+  if (name) profile.name = name.trim();
+  if (emoji) profile.emoji = emoji;
+
+  if (req.file) {
+    try {
+      const text = await parseResume(req.file.path);
+      if (!text || text.trim().length < 50) {
+        return res.status(400).json({ error: 'Could not extract enough text from the resume' });
+      }
+      profile.text = text.trim();
+      profile.fileName = req.file.originalname;
+      profile.filePath = req.file.path;
+      profile.uploadedAt = new Date().toISOString();
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  saveProfiles();
+  console.log(`[Server] Profile updated: ${profile.name}`);
+  res.json({ success: true, profile: { id: profile.id, name: profile.name, emoji: profile.emoji, fileName: profile.fileName, textLength: profile.text.length, uploadedAt: profile.uploadedAt } });
+});
+
+app.delete('/profiles/:id', (req, res) => {
+  const idx = profiles.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Profile not found' });
+
+  const removed = profiles.splice(idx, 1)[0];
+  if (activeProfileId === removed.id) {
+    activeProfileId = profiles[0]?.id || null;
+  }
+  saveProfiles();
+  console.log(`[Server] Profile deleted: ${removed.name}`);
+  res.json({ success: true, activeProfileId });
+});
+
+app.post('/profiles/:id/activate', (req, res) => {
+  const profile = profiles.find(p => p.id === req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+  activeProfileId = profile.id;
+  saveProfiles();
+  console.log(`[Server] Active profile switched to: ${profile.name}`);
+  res.json({ success: true, activeProfileId });
+});
+
+// ── Legacy + Core Routes ──
 
 // Health check
 app.get('/health', (req, res) => {
   console.log('[Server] Health check');
+  const active = getActiveProfile();
   res.json({
     status: 'ok',
-    resumeLoaded: !!masterResume,
+    resumeLoaded: !!active,
+    activeProfile: active ? { id: active.id, name: active.name, emoji: active.emoji } : null,
+    profileCount: profiles.length,
     historyCount: optimizationHistory.length,
     timestamp: new Date().toISOString()
   });
 });
 
-// Upload master resume
+// Legacy upload — creates/updates active profile
 app.post('/upload-resume', upload.single('resume'), async (req, res) => {
   console.log('[Server] Resume upload request received');
 
@@ -479,19 +625,33 @@ app.post('/upload-resume', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: 'Could not extract enough text from the resume' });
     }
 
-    masterResume = {
-      text: text.trim(),
-      fileName: req.file.originalname,
-      filePath: req.file.path,
-      uploadedAt: new Date().toISOString()
-    };
+    const active = getActiveProfile();
+    if (active) {
+      active.text = text.trim();
+      active.fileName = req.file.originalname;
+      active.filePath = req.file.path;
+      active.uploadedAt = new Date().toISOString();
+    } else {
+      const profile = {
+        id: `profile-${Date.now()}`,
+        name: extractCandidateName(text) || 'Default',
+        emoji: '📄',
+        text: text.trim(),
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        uploadedAt: new Date().toISOString()
+      };
+      profiles.push(profile);
+      activeProfileId = profile.id;
+    }
 
-    fs.writeFileSync(MASTER_RESUME_PATH, JSON.stringify(masterResume, null, 2));
-    console.log('[Server] Master resume saved:', masterResume.fileName, `(${text.length} chars)`);
+    saveProfiles();
+    const p = getActiveProfile();
+    console.log('[Server] Resume saved to profile:', p.name, `(${text.length} chars)`);
 
     res.json({
       success: true,
-      fileName: masterResume.fileName,
+      fileName: p.fileName,
       textLength: text.length,
       preview: text.substring(0, 300) + '...'
     });
@@ -501,23 +661,31 @@ app.post('/upload-resume', upload.single('resume'), async (req, res) => {
   }
 });
 
-// Get master resume info
+// Get active profile resume info
 app.get('/resume', (req, res) => {
-  if (!masterResume) {
-    return res.status(404).json({ error: 'No master resume uploaded' });
+  const active = getActiveProfile();
+  if (!active) {
+    return res.status(404).json({ error: 'No resume profile active' });
   }
   res.json({
-    fileName: masterResume.fileName,
-    uploadedAt: masterResume.uploadedAt,
-    textLength: masterResume.text.length,
-    preview: masterResume.text.substring(0, 500) + '...'
+    fileName: active.fileName,
+    uploadedAt: active.uploadedAt,
+    textLength: active.text.length,
+    preview: active.text.substring(0, 500) + '...',
+    profileId: active.id,
+    profileName: active.name,
+    profileEmoji: active.emoji
   });
 });
 
-// Get optimization history
+// Get optimization history (optionally filtered by profileId)
 app.get('/history', (req, res) => {
-  console.log('[Server] History request, entries:', optimizationHistory.length);
-  res.json(optimizationHistory.map(h => ({
+  let filtered = optimizationHistory;
+  if (req.query.profileId) {
+    filtered = filtered.filter(h => h.profileId === req.query.profileId);
+  }
+  console.log(`[Server] History request, entries: ${filtered.length}/${optimizationHistory.length}`);
+  res.json(filtered.map(h => ({
     id: h.id,
     jobTitle: h.jobTitle,
     companyName: h.companyName,
@@ -526,7 +694,12 @@ app.get('/history', (req, res) => {
     optimizedAt: h.optimizedAt,
     resumePath: h.resumePath,
     coverLetterPath: h.coverLetterPath,
-    tone: h.tone
+    tone: h.tone,
+    retryAttempts: h.retryAttempts,
+    belowThreshold: h.belowThreshold,
+    profileId: h.profileId,
+    profileName: h.profileName,
+    profileEmoji: h.profileEmoji
   })));
 });
 
@@ -544,10 +717,12 @@ app.post('/optimize', async (req, res) => {
   console.log('[Server] ═══════════════════════════════════════');
   console.log('[Server] Optimize request received');
 
+  const masterResume = getActiveProfile();
   if (!masterResume) {
-    console.error('[Server] No master resume loaded');
-    return res.status(400).json({ error: 'No master resume uploaded. Upload one first at POST /upload-resume' });
+    console.error('[Server] No active profile');
+    return res.status(400).json({ error: 'No resume profile active. Create a profile with a resume first.' });
   }
+  console.log(`[Server] Using profile: ${masterResume.name} (${masterResume.id})`);
 
   const { jobTitle, companyName, fullDescription, requiredSkills, preferredQualifications, sourceUrl, tone } = req.body;
 
@@ -670,6 +845,9 @@ app.post('/optimize', async (req, res) => {
 
     const historyEntry = {
       id: optimizationId,
+      profileId: masterResume.id,
+      profileName: masterResume.name,
+      profileEmoji: masterResume.emoji,
       jobTitle: jobTitle || 'Unknown Title',
       companyName: companyName || 'Unknown Company',
       fullDescription,
@@ -743,10 +921,10 @@ app.post('/regenerate-cover-letter', async (req, res) => {
       { keywords: entry.keywords },
       tone,
       {
-        candidateName: extractCandidateName(masterResume?.text || entry.originalResumeText || ''),
+        candidateName: extractCandidateName(getActiveProfile()?.text || entry.originalResumeText || ''),
         companyName: entry.companyName || 'the company',
         jobTitle: entry.jobTitle || 'the position',
-        resumeText: masterResume?.text || entry.originalResumeText || '',
+        resumeText: getActiveProfile()?.text || entry.originalResumeText || '',
         personalNote: personalNote || ''
       }
     );
@@ -785,7 +963,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] ══════════════════════════════════════════`);
   console.log(`[Server] Indeeeed Optimizer API running on port ${PORT}`);
   console.log(`[Server] Health:  http://0.0.0.0:${PORT}/health`);
-  console.log(`[Server] Resume:  ${masterResume ? '✅ Loaded' : '❌ Not uploaded'}`);
+  console.log(`[Server] Profiles: ${profiles.length} (active: ${getActiveProfile()?.name || 'none'})`);
   console.log(`[Server] History: ${optimizationHistory.length} entries`);
   console.log(`[Server] ══════════════════════════════════════════`);
 });

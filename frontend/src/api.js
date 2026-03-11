@@ -8,17 +8,52 @@ export async function checkHealth() {
   return res.json();
 }
 
+// ── Profile API ──
+
+export async function getProfiles() {
+  const res = await fetch(`${API_BASE}/profiles`);
+  return res.json();
+}
+
+export async function createProfile(name, emoji, file) {
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('emoji', emoji);
+  formData.append('resume', file);
+  const res = await fetch(`${API_BASE}/profiles`, { method: 'POST', body: formData });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to create profile'); }
+  return res.json();
+}
+
+export async function updateProfile(id, { name, emoji, file } = {}) {
+  const formData = new FormData();
+  if (name) formData.append('name', name);
+  if (emoji) formData.append('emoji', emoji);
+  if (file) formData.append('resume', file);
+  const res = await fetch(`${API_BASE}/profiles/${id}`, { method: 'PUT', body: formData });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to update profile'); }
+  return res.json();
+}
+
+export async function deleteProfile(id) {
+  const res = await fetch(`${API_BASE}/profiles/${id}`, { method: 'DELETE' });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to delete profile'); }
+  return res.json();
+}
+
+export async function activateProfile(id) {
+  const res = await fetch(`${API_BASE}/profiles/${id}/activate`, { method: 'POST' });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to activate profile'); }
+  return res.json();
+}
+
+// ── Legacy Resume API ──
+
 export async function uploadResume(file) {
   const formData = new FormData();
   formData.append('resume', file);
-  const res = await fetch(`${API_BASE}/upload-resume`, {
-    method: 'POST',
-    body: formData,
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Upload failed');
-  }
+  const res = await fetch(`${API_BASE}/upload-resume`, { method: 'POST', body: formData });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Upload failed'); }
   return res.json();
 }
 
@@ -28,8 +63,11 @@ export async function getResumeInfo() {
   return res.json();
 }
 
-export async function getHistory() {
-  const res = await fetch(`${API_BASE}/history`);
+// ── History API ──
+
+export async function getHistory(profileId) {
+  const url = profileId ? `${API_BASE}/history?profileId=${profileId}` : `${API_BASE}/history`;
+  const res = await fetch(url);
   return res.json();
 }
 
@@ -45,10 +83,7 @@ export async function regenerateCoverLetter(optimizationId, tone, personalNote =
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ optimizationId, tone, personalNote }),
   });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Regeneration failed');
-  }
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Regeneration failed'); }
   return res.json();
 }
 

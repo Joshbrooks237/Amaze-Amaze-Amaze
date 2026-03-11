@@ -53,6 +53,11 @@ export default function HistoryFeed({ history, onSelect }) {
                       month: 'short', day: 'numeric', year: 'numeric'
                     })}
                   </span>
+                  {item.profileName && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary-light border border-primary/20">
+                      {item.profileEmoji || '📄'} {item.profileName}
+                    </span>
+                  )}
                   {item.tone && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-overlay text-slate-400">
                       {item.tone}
