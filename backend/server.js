@@ -29,9 +29,12 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
-app.get('/', (req, res) => {
-  res.json({ status: 'ok' });
-});
+// Serve frontend build if it exists
+const FRONTEND_BUILD = path.join(__dirname, '..', 'frontend', 'build');
+if (fs.existsSync(FRONTEND_BUILD)) {
+  app.use(express.static(FRONTEND_BUILD));
+  console.log('[Server] Serving frontend from', FRONTEND_BUILD);
+}
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -959,13 +962,22 @@ app.post('/regenerate-cover-letter', async (req, res) => {
   }
 });
 
+// SPA catch-all: serve frontend for any route not handled by the API
+if (fs.existsSync(FRONTEND_BUILD)) {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(FRONTEND_BUILD, 'index.html'));
+  });
+}
+
 // ── Start Server ──
 loadPersistedData();
 
+const hasFrontend = fs.existsSync(FRONTEND_BUILD);
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] ══════════════════════════════════════════`);
   console.log(`[Server] Indeeeed Optimizer API running on port ${PORT}`);
   console.log(`[Server] PORT=${PORT} (from ${process.env.PORT ? 'env' : 'default'})`);
+  console.log(`[Server] Frontend: ${hasFrontend ? 'serving from build' : 'not built (API-only mode)'}`);
   console.log(`[Server] CORS: origin=*`);
   console.log(`[Server] Health:  http://0.0.0.0:${PORT}/health`);
   console.log(`[Server] Profiles: ${profiles.length} (active: ${getActiveProfile()?.name || 'none'})`);

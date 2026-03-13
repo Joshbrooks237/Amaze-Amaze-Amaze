@@ -1,6 +1,6 @@
-const API_BASE = process.env.REACT_APP_API_URL || 'https://application-application-app-production.up.railway.app';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
-console.log('[Indeeeed] API_BASE =', API_BASE);
+console.log('[Indeeeed] API_BASE =', API_BASE || '(same origin)');
 
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);
