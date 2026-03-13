@@ -1,10 +1,6 @@
-const API_BASE = process.env.REACT_APP_API_URL || '';
+const API_BASE = process.env.REACT_APP_API_URL || 'https://application-application-app-production.up.railway.app';
 
-if (!API_BASE) {
-  console.error('[Indeeeed] REACT_APP_API_URL is not set! All API calls will fail.');
-}
-
-console.log('[Indeeeed] API_BASE =', API_BASE || '(MISSING — set REACT_APP_API_URL)');
+console.log('[Indeeeed] API_BASE =', API_BASE);
 
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);

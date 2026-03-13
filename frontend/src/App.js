@@ -111,7 +111,7 @@ function App() {
               Cannot reach the backend API. Check the browser console for the API URL being used.
             </p>
             <p className="text-xs text-slate-500 font-mono bg-surface-raised inline-block px-3 py-1.5 rounded-lg">
-              API: {process.env.REACT_APP_API_URL || '(REACT_APP_API_URL not set)'}
+              API: {process.env.REACT_APP_API_URL || 'https://application-application-app-production.up.railway.app'}
             </p>
           </div>
         ) : selectedId ? (

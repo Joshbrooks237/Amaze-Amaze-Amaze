@@ -3,7 +3,7 @@
 
   const BACKEND_URL = (typeof INDEEEED_CONFIG !== 'undefined' && INDEEEED_CONFIG.API_URL)
     ? INDEEEED_CONFIG.API_URL
-    : 'http://localhost:3001';
+    : 'https://application-application-app-production.up.railway.app';
   const INIT_DELAY = 2000;
   const RETRY_INTERVAL = 3000;
   const MAX_RETRIES = 10;
