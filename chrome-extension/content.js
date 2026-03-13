@@ -293,12 +293,27 @@
     document.addEventListener('mouseup', () => setTimeout(updateButtonMode, 50));
   }
 
-  // ── Floating Button ──
+  // ── Floating Button Bar ──
+  function getDashboardURL() {
+    return (typeof INDEEEED_CONFIG !== 'undefined' && INDEEEED_CONFIG.DASHBOARD_URL)
+      ? INDEEEED_CONFIG.DASHBOARD_URL
+      : 'http://localhost:3000';
+  }
+
   function createOptimizeButton() {
-    if (document.getElementById('indeeeed-optimize-btn')) {
-      console.log('[Indeeeed] Button already exists, skipping');
+    if (document.getElementById('indeeeed-btn-bar')) {
+      console.log('[Indeeeed] Button bar already exists, skipping');
       return;
     }
+
+    const bar = document.createElement('div');
+    bar.id = 'indeeeed-btn-bar';
+
+    const dashBtn = document.createElement('button');
+    dashBtn.id = 'indeeeed-dash-btn';
+    dashBtn.title = 'Open Dashboard';
+    dashBtn.innerHTML = '📊';
+    dashBtn.addEventListener('click', () => window.open(getDashboardURL(), '_blank'));
 
     const btn = document.createElement('button');
     btn.id = 'indeeeed-optimize-btn';
@@ -307,19 +322,13 @@
       <span class="btn-icon">🚀</span>
       <span class="btn-text">Optimize My Application</span>
     `;
-
     btn.addEventListener('click', handleOptimizeClick);
-    document.body.appendChild(btn);
-    startSelectionListener();
-    console.log('[Indeeeed] ✅ Floating optimize button injected (with highlight mode)');
 
-    const computed = window.getComputedStyle(btn);
-    console.log('[Indeeeed] Button computed styles — display:', computed.display,
-      '| visibility:', computed.visibility,
-      '| position:', computed.position,
-      '| z-index:', computed.zIndex,
-      '| bottom:', computed.bottom,
-      '| right:', computed.right);
+    bar.appendChild(dashBtn);
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+    startSelectionListener();
+    console.log('[Indeeeed] ✅ Button bar injected (optimize + dashboard)');
   }
 
   async function handleOptimizeClick() {
@@ -372,7 +381,7 @@
         keywordCount: result.keywords?.length
       });
 
-      showToast('Resume & cover letter are ready! Open dashboard to download.', 'success', 5000);
+      showToast('Resume & cover letter are ready! Click 📊 to open dashboard.', 'success', 5000);
       showStatusBadge('✅ Optimization complete');
 
     } catch (error) {
@@ -450,8 +459,8 @@
       console.log('[Indeeeed] URL changed to:', location.href);
       retryCount = 0;
       // Remove old button so it re-injects cleanly
-      const oldBtn = document.getElementById('indeeeed-optimize-btn');
-      if (oldBtn) oldBtn.remove();
+      const oldBar = document.getElementById('indeeeed-btn-bar');
+      if (oldBar) oldBar.remove();
       setTimeout(init, INIT_DELAY);
     }
   });
@@ -475,8 +484,8 @@
       lastUrl = location.href;
       console.log('[Indeeeed] History state changed to:', location.href);
       retryCount = 0;
-      const oldBtn = document.getElementById('indeeeed-optimize-btn');
-      if (oldBtn) oldBtn.remove();
+      const oldBar = document.getElementById('indeeeed-btn-bar');
+      if (oldBar) oldBar.remove();
       setTimeout(init, INIT_DELAY);
     }
   });
