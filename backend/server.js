@@ -1193,6 +1193,73 @@ app.post('/answers/:id/select', (req, res) => {
   res.json({ success: true });
 });
 
+app.post('/answer-batch', async (req, res) => {
+  const { fields, pageContext } = req.body;
+  console.log('[Server] ── Batch Answer ──');
+  console.log(`[Server] ${fields?.length || 0} fields to fill`);
+
+  if (!Array.isArray(fields) || fields.length === 0) {
+    return res.status(400).json({ error: 'No fields provided' });
+  }
+
+  const profile = getActiveProfile();
+  if (!profile) {
+    return res.status(400).json({ error: 'No active resume profile. Upload a resume first.' });
+  }
+
+  try {
+    const fieldDescriptions = fields.map((f, i) =>
+      `Field ${i + 1}:\n  Label: ${f.label || '(unlabeled)'}\n  Placeholder: ${f.placeholder || '(none)'}\n  Type: ${f.type || 'text'}`
+    ).join('\n\n');
+
+    const contextParts = [];
+    if (pageContext?.companyName) contextParts.push(`Company: ${pageContext.companyName}`);
+    if (pageContext?.roleTitle) contextParts.push(`Role: ${pageContext.roleTitle}`);
+    if (pageContext?.url) contextParts.push(`URL: ${pageContext.url}`);
+
+    const systemPrompt = `You are an expert job application assistant. You will receive a list of form fields from a job application page and the candidate's resume. For each field, generate the best answer using ONLY the candidate's real experience. Be specific, honest, and concise. For name fields use the candidate's name. For contact fields use their contact info. For short fields (name, city, phone, etc.) give just the value. For longer questions give 1-4 sentences.
+
+Return a JSON array where each element corresponds to a field in order:
+[{"fieldIndex": 0, "answer": "..."}, {"fieldIndex": 1, "answer": "..."}, ...]
+
+Return ONLY valid JSON, no markdown, no explanation.`;
+
+    const userContent = `${contextParts.join('\n')}\n\n---\nForm Fields:\n${fieldDescriptions}\n\n---\nCandidate Resume:\n${profile.text}`;
+
+    const raw = await callOpenAI(systemPrompt, userContent, 'Batch Answer Generation');
+    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const answers = JSON.parse(cleaned);
+
+    // Save each answer to the library
+    const results = answers.map(a => {
+      const field = fields[a.fieldIndex] || {};
+      const entry = {
+        id: `ans-${Date.now()}-${a.fieldIndex}`,
+        question: field.label || field.placeholder || `Field ${a.fieldIndex + 1}`,
+        answer: a.answer,
+        category: 'other',
+        pageContext: pageContext || {},
+        profileId: profile.id,
+        profileName: profile.name,
+        profileEmoji: profile.emoji,
+        versions: [{ answer: a.answer, generatedAt: new Date().toISOString() }],
+        selectedVersion: 0,
+        similarPreviousId: null,
+        generatedAt: new Date().toISOString()
+      };
+      answerLibrary.unshift(entry);
+      return { fieldIndex: a.fieldIndex, answer: a.answer, id: entry.id };
+    });
+
+    saveAnswers();
+    console.log(`[Server] Batch complete: ${results.length} answers generated`);
+    res.json({ results });
+  } catch (err) {
+    console.error('[Server] Batch answer failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // SPA catch-all: serve frontend for any route not handled by the API
 if (fs.existsSync(FRONTEND_BUILD)) {
   app.get('*', (req, res) => {

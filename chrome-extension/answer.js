@@ -14,6 +14,9 @@
     if (msg.type === 'GENERATE_ANSWER') {
       handleAnswerRequest(msg.question);
     }
+    if (msg.type === 'FILL_ALL_FIELDS') {
+      handleFillAll();
+    }
   });
 
   function extractPageContext() {
@@ -401,8 +404,179 @@
     }
   }
 
+  // ── Fill All Fields ──
+
+  function getLabelForField(field) {
+    // 1. Explicit <label for="id">
+    if (field.id) {
+      const label = document.querySelector(`label[for="${field.id}"]`);
+      if (label) return label.textContent.trim();
+    }
+
+    // 2. Wrapping <label>
+    const parentLabel = field.closest('label');
+    if (parentLabel) {
+      const text = parentLabel.textContent.replace(field.value || '', '').trim();
+      if (text) return text;
+    }
+
+    // 3. aria-label or aria-labelledby
+    if (field.getAttribute('aria-label')) return field.getAttribute('aria-label');
+    const labelledBy = field.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      const el = document.getElementById(labelledBy);
+      if (el) return el.textContent.trim();
+    }
+
+    // 4. Previous sibling or nearby text
+    let prev = field.previousElementSibling;
+    for (let i = 0; i < 3 && prev; i++) {
+      const text = prev.textContent.trim();
+      if (text.length > 1 && text.length < 200) return text;
+      prev = prev.previousElementSibling;
+    }
+
+    // 5. Parent's preceding text
+    const parent = field.parentElement;
+    if (parent) {
+      const prevParent = parent.previousElementSibling;
+      if (prevParent) {
+        const text = prevParent.textContent.trim();
+        if (text.length > 1 && text.length < 200) return text;
+      }
+    }
+
+    // 6. Placeholder or name attribute
+    return field.placeholder || field.name || '';
+  }
+
+  function scanEmptyFields() {
+    const selectors = 'textarea, input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input[type="number"], input:not([type]), [contenteditable="true"], [role="textbox"]';
+    const allFields = document.querySelectorAll(selectors);
+    const emptyFields = [];
+
+    for (const field of allFields) {
+      if (field.offsetParent === null) continue; // hidden
+      if (field.type === 'hidden' || field.type === 'password' || field.type === 'submit') continue;
+      if (field.readOnly || field.disabled) continue;
+
+      const hasValue = field.getAttribute('contenteditable') === 'true'
+        ? field.textContent.trim().length > 0
+        : (field.value || '').trim().length > 0;
+
+      if (hasValue) continue;
+
+      const label = getLabelForField(field);
+      emptyFields.push({
+        element: field,
+        label,
+        placeholder: field.placeholder || '',
+        type: field.type || field.tagName.toLowerCase(),
+      });
+    }
+
+    return emptyFields;
+  }
+
+  function showProgressOverlay(total) {
+    removeProgressOverlay();
+    const overlay = document.createElement('div');
+    overlay.id = 'rio-brave-progress';
+    overlay.innerHTML = `
+      <div class="rio-header">
+        <span class="rio-logo">✨</span>
+        <span class="rio-title">Rio Brave — Fill All</span>
+        <button class="rio-close" title="Cancel">✕</button>
+      </div>
+      <div class="rio-progress-body">
+        <div class="rio-loading"><div class="rio-spinner"></div> <span class="rio-progress-text">Scanning ${total} fields...</span></div>
+        <div class="rio-progress-bar-track"><div class="rio-progress-bar-fill" style="width: 0%"></div></div>
+        <div class="rio-progress-details"></div>
+      </div>
+    `;
+    overlay.querySelector('.rio-close').addEventListener('click', () => {
+      removeProgressOverlay();
+      showToast('Fill cancelled', 'info');
+    });
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function updateProgress(overlay, filled, total, currentLabel) {
+    const pct = Math.round((filled / total) * 100);
+    const fill = overlay.querySelector('.rio-progress-bar-fill');
+    const text = overlay.querySelector('.rio-progress-text');
+    const details = overlay.querySelector('.rio-progress-details');
+    if (fill) fill.style.width = pct + '%';
+    if (text) text.textContent = `Filling fields... ${filled}/${total}`;
+    if (details && currentLabel) details.textContent = currentLabel;
+  }
+
+  function removeProgressOverlay() {
+    const el = document.getElementById('rio-brave-progress');
+    if (el) el.remove();
+  }
+
+  async function handleFillAll() {
+    const emptyFields = scanEmptyFields();
+    console.log(`[Rio Brave] Found ${emptyFields.length} empty fields`);
+
+    if (emptyFields.length === 0) {
+      showToast('No empty fields found on this page', 'info');
+      return;
+    }
+
+    const overlay = showProgressOverlay(emptyFields.length);
+    const pageContext = extractPageContext();
+
+    try {
+      const fieldData = emptyFields.map(f => ({
+        label: f.label,
+        placeholder: f.placeholder,
+        type: f.type,
+      }));
+
+      updateProgress(overlay, 0, emptyFields.length, 'Sending to AI...');
+
+      const resp = await fetch(`${API_URL}/answer-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: fieldData, pageContext })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Server error: ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      let filledCount = 0;
+
+      for (const result of data.results) {
+        const fieldInfo = emptyFields[result.fieldIndex];
+        if (!fieldInfo) continue;
+
+        const pasted = pasteIntoField(fieldInfo.element, result.answer);
+        if (pasted) {
+          fieldInfo.element.style.outline = '2px solid #059669';
+          setTimeout(() => { fieldInfo.element.style.outline = ''; }, 3000);
+          filledCount++;
+        }
+        updateProgress(overlay, filledCount, emptyFields.length, fieldInfo.label || `Field ${result.fieldIndex + 1}`);
+      }
+
+      removeProgressOverlay();
+      showToast(`Filled ${filledCount} of ${emptyFields.length} fields!`, 'success');
+      console.log(`[Rio Brave] Batch fill complete: ${filledCount}/${emptyFields.length}`);
+    } catch (err) {
+      console.error('[Rio Brave] Fill all failed:', err.message);
+      removeProgressOverlay();
+      showToast('Fill failed: ' + err.message, 'error');
+    }
+  }
+
   // Close preview on Escape
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') removePreview();
+    if (e.key === 'Escape') { removePreview(); removeProgressOverlay(); }
   });
 })();
