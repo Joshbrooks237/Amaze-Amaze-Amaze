@@ -92,3 +92,21 @@ export async function regenerateCoverLetter(optimizationId, tone, personalNote =
 export function getDownloadUrl(filePath) {
   return `${API_BASE}${filePath}`;
 }
+
+// ── Answer Library API ──
+
+export async function getAnswers(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.profileId) params.set('profileId', filters.profileId);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.search) params.set('search', filters.search);
+  const res = await fetch(`${API_BASE}/answers?${params}`);
+  if (!res.ok) throw new Error('Failed to load answers');
+  return res.json();
+}
+
+export async function regenerateAnswer(id) {
+  const res = await fetch(`${API_BASE}/answers/${id}/regenerate`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to regenerate');
+  return res.json();
+}

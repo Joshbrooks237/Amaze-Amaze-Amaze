@@ -3,11 +3,12 @@
   "name": "Indeed Job Application Optimizer",
   "version": "1.2.0",
   "description": "Scrapes Indeed job listings and optimizes your resume and cover letter using AI.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "contextMenus"],
   "host_permissions": [
     "https://*.indeed.com/*",
     "http://localhost:3001/*",
-    "https://*.railway.app/*"
+    "https://*.railway.app/*",
+    "<all_urls>"
   ],
   "content_scripts": [
     {
@@ -16,6 +17,12 @@
       ],
       "js": ["config.js", "content.js"],
       "css": ["styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["config.js", "answer.js"],
+      "css": ["answer-styles.css"],
       "run_at": "document_idle"
     }
   ],

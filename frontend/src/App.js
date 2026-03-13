@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import ProfileSwitcher from './components/ProfileSwitcher';
 import HistoryFeed from './components/HistoryFeed';
+import AnswerLibrary from './components/AnswerLibrary';
 import StatusBar from './components/StatusBar';
 import ErrorBoundary from './components/ErrorBoundary';
-import { checkHealth, getProfiles, getHistory } from './api';
+import { checkHealth, getProfiles, getHistory, getAnswers } from './api';
 
 const OptimizationDetail = lazy(() => import('./components/OptimizationDetail'));
 
@@ -15,6 +16,8 @@ function App() {
   const [backendOnline, setBackendOnline] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterProfile, setFilterProfile] = useState('all');
+  const [activeTab, setActiveTab] = useState('applications');
+  const [answers, setAnswers] = useState([]);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
@@ -47,6 +50,14 @@ function App() {
       setHistory(arr);
     } catch (err) {
       console.warn('[Indeeeed] Failed to load history:', err);
+    }
+
+    try {
+      const ansData = await getAnswers();
+      if (signal?.aborted) return;
+      setAnswers(Array.isArray(ansData) ? ansData : []);
+    } catch (err) {
+      console.warn('[Indeeeed] Failed to load answers:', err);
     }
 
     if (!signal?.aborted) setLoading(false);
@@ -139,40 +150,74 @@ function App() {
               </ErrorBoundary>
             </div>
             <div className="lg:col-span-2">
-              {profiles.length > 1 && (
-                <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <span className="text-xs text-slate-500">Filter:</span>
-                  <button
-                    onClick={() => setFilterProfile('all')}
-                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                      filterProfile === 'all'
-                        ? 'bg-primary text-white'
-                        : 'bg-surface-raised text-slate-400 border border-surface-overlay hover:text-slate-200'
-                    }`}
-                  >
-                    All Profiles
-                  </button>
-                  {profiles.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => setFilterProfile(p.id)}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        filterProfile === p.id
-                          ? 'bg-primary text-white'
-                          : 'bg-surface-raised text-slate-400 border border-surface-overlay hover:text-slate-200'
-                      }`}
-                    >
-                      {p.emoji} {p.name}
-                    </button>
-                  ))}
-                </div>
+              {/* Tab navigation */}
+              <div className="flex gap-1 mb-6 bg-surface rounded-xl p-1">
+                <button
+                  onClick={() => { setActiveTab('applications'); setSelectedId(null); }}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    activeTab === 'applications'
+                      ? 'bg-primary text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  📄 Optimized Applications ({history.length})
+                </button>
+                <button
+                  onClick={() => { setActiveTab('answers'); setSelectedId(null); }}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    activeTab === 'answers'
+                      ? 'bg-primary text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  ✨ Application Answers ({answers.length})
+                </button>
+              </div>
+
+              {activeTab === 'applications' && (
+                <>
+                  {profiles.length > 1 && (
+                    <div className="flex items-center gap-2 mb-4 flex-wrap">
+                      <span className="text-xs text-slate-500">Filter:</span>
+                      <button
+                        onClick={() => setFilterProfile('all')}
+                        className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                          filterProfile === 'all'
+                            ? 'bg-primary text-white'
+                            : 'bg-surface-raised text-slate-400 border border-surface-overlay hover:text-slate-200'
+                        }`}
+                      >
+                        All Profiles
+                      </button>
+                      {profiles.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setFilterProfile(p.id)}
+                          className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                            filterProfile === p.id
+                              ? 'bg-primary text-white'
+                              : 'bg-surface-raised text-slate-400 border border-surface-overlay hover:text-slate-200'
+                          }`}
+                        >
+                          {p.emoji} {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <ErrorBoundary>
+                    <HistoryFeed
+                      history={filteredHistory}
+                      onSelect={setSelectedId}
+                    />
+                  </ErrorBoundary>
+                </>
               )}
-              <ErrorBoundary>
-                <HistoryFeed
-                  history={filteredHistory}
-                  onSelect={setSelectedId}
-                />
-              </ErrorBoundary>
+
+              {activeTab === 'answers' && (
+                <ErrorBoundary>
+                  <AnswerLibrary answers={answers} />
+                </ErrorBoundary>
+              )}
             </div>
           </div>
         )}

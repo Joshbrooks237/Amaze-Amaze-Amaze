@@ -2,6 +2,11 @@ importScripts('config.js');
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[Indeeeed] Extension installed successfully');
+  chrome.contextMenus.create({
+    id: 'answer-with-rio-brave',
+    title: 'Answer with Rio Brave ✨',
+    contexts: ['selection']
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -21,4 +26,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   return false;
+});
+
+// ── Rio Brave: Highlight-to-Answer ──
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'answer-with-rio-brave' && info.selectionText) {
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'GENERATE_ANSWER',
+      question: info.selectionText
+    });
+  }
 });

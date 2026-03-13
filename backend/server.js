@@ -89,6 +89,9 @@ let profiles = [];          // [{ id, name, emoji, text, fileName, filePath, upl
 let activeProfileId = null;
 let optimizationHistory = [];
 
+const ANSWERS_PATH = path.join(DATA_DIR, 'answer-library.json');
+let answerLibrary = [];
+
 function getActiveProfile() {
   return profiles.find(p => p.id === activeProfileId) || null;
 }
@@ -142,6 +145,8 @@ function loadPersistedData() {
   } catch (err) {
     console.error('[Server] Failed to load history:', err.message);
   }
+
+  loadAnswers();
 }
 
 function saveProfiles() {
@@ -160,7 +165,24 @@ function saveHistory() {
   }
 }
 
+function loadAnswers() {
+  try {
+    if (fs.existsSync(ANSWERS_PATH)) {
+      answerLibrary = JSON.parse(fs.readFileSync(ANSWERS_PATH, 'utf-8'));
+      console.log('[Server] Loaded answer library:', answerLibrary.length, 'entries');
+    }
+  } catch (err) {
+    console.error('[Server] Failed to load answers:', err.message);
+  }
+}
 
+function saveAnswers() {
+  try {
+    fs.writeFileSync(ANSWERS_PATH, JSON.stringify(answerLibrary, null, 2));
+  } catch (err) {
+    console.error('[Server] Failed to save answers:', err.message);
+  }
+}
 
 // ── Resume Parsing ──
 async function parseResume(filePath) {
@@ -962,6 +984,215 @@ app.post('/regenerate-cover-letter', async (req, res) => {
   }
 });
 
+// ── Answer Library (Highlight-to-Answer) ──
+
+const ANSWER_CATEGORIES = [
+  'motivation', 'experience', 'strengths', 'conflict_resolution',
+  'salary', 'availability', 'why_this_company', 'skills',
+  'leadership', 'teamwork', 'weakness', 'other'
+];
+
+app.post('/answer-question', async (req, res) => {
+  const { question, pageContext } = req.body;
+  console.log('[Server] ── Answer Question ──');
+  console.log('[Server] Question:', question?.substring(0, 100));
+  console.log('[Server] Context:', pageContext?.url);
+
+  if (!question || question.trim().length < 5) {
+    return res.status(400).json({ error: 'Question is too short' });
+  }
+
+  const profile = getActiveProfile();
+  if (!profile) {
+    return res.status(400).json({ error: 'No active resume profile. Upload a resume first.' });
+  }
+
+  try {
+    // Check for similar previous answers
+    const questionLower = question.toLowerCase().trim();
+    const similar = answerLibrary.find(a =>
+      a.profileId === profile.id &&
+      (a.question.toLowerCase().includes(questionLower) ||
+       questionLower.includes(a.question.toLowerCase()) ||
+       levenshteinSimilarity(a.question.toLowerCase(), questionLower) > 0.6)
+    );
+
+    if (similar) {
+      console.log('[Server] Found similar previous answer:', similar.id);
+    }
+
+    // Generate answer
+    const systemPrompt = `You are an expert job application assistant. Using only the candidate's actual experience from their resume, generate a specific, honest, compelling answer to the following job application question. Sound human and natural. Use real examples and real metrics from their background. Never fabricate experience. Keep answers concise — 2 to 4 sentences for short answer fields, up to one paragraph for longer fields. Always lead with a specific real example not a generic statement.`;
+
+    const contextParts = [`Question: ${question}`];
+    if (pageContext?.companyName) contextParts.push(`Company: ${pageContext.companyName}`);
+    if (pageContext?.roleTitle) contextParts.push(`Role: ${pageContext.roleTitle}`);
+    if (pageContext?.url) contextParts.push(`Application URL: ${pageContext.url}`);
+    contextParts.push(`\n---\nCandidate Resume:\n${profile.text}`);
+
+    if (similar) {
+      contextParts.push(`\n---\nA similar question was previously answered. Here is the previous answer for reference (improve upon it, don't copy verbatim):\n${similar.versions[similar.selectedVersion]?.answer || similar.answer}`);
+    }
+
+    const answer = await callOpenAI(systemPrompt, contextParts.join('\n'), 'Answer Generation');
+
+    // Auto-categorize
+    let category = 'other';
+    try {
+      const catResult = await callOpenAI(
+        'Categorize this job application question into exactly ONE of these categories. Return ONLY the category name, nothing else: motivation, experience, strengths, conflict_resolution, salary, availability, why_this_company, skills, leadership, teamwork, weakness, other',
+        question,
+        'Answer Categorization'
+      );
+      const cleaned = catResult.trim().toLowerCase().replace(/[^a-z_]/g, '');
+      if (ANSWER_CATEGORIES.includes(cleaned)) category = cleaned;
+    } catch (err) {
+      console.warn('[Server] Categorization failed, using "other":', err.message);
+    }
+
+    const entry = {
+      id: `ans-${Date.now()}`,
+      question: question.trim(),
+      answer,
+      category,
+      pageContext: pageContext || {},
+      profileId: profile.id,
+      profileName: profile.name,
+      profileEmoji: profile.emoji,
+      versions: [{ answer, generatedAt: new Date().toISOString() }],
+      selectedVersion: 0,
+      similarPreviousId: similar?.id || null,
+      generatedAt: new Date().toISOString()
+    };
+
+    answerLibrary.unshift(entry);
+    saveAnswers();
+    console.log(`[Server] Answer generated and saved: ${entry.id} [${category}]`);
+
+    res.json({
+      id: entry.id,
+      question: entry.question,
+      answer,
+      category,
+      similarPrevious: similar ? { id: similar.id, question: similar.question, answer: similar.versions[similar.selectedVersion]?.answer || similar.answer } : null,
+      pageContext: entry.pageContext,
+      profileId: entry.profileId,
+      profileName: entry.profileName,
+      generatedAt: entry.generatedAt
+    });
+  } catch (err) {
+    console.error('[Server] Answer generation failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Simple similarity check
+function levenshteinSimilarity(a, b) {
+  if (a === b) return 1;
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  if (longer.length === 0) return 1;
+  const costs = [];
+  for (let i = 0; i <= longer.length; i++) {
+    let lastVal = i;
+    for (let j = 0; j <= shorter.length; j++) {
+      if (i === 0) { costs[j] = j; }
+      else if (j > 0) {
+        let newVal = costs[j - 1];
+        if (longer[i - 1] !== shorter[j - 1]) {
+          newVal = Math.min(Math.min(newVal, lastVal), costs[j]) + 1;
+        }
+        costs[j - 1] = lastVal;
+        lastVal = newVal;
+      }
+    }
+    if (i > 0) costs[shorter.length] = lastVal;
+  }
+  return (longer.length - costs[shorter.length]) / longer.length;
+}
+
+app.get('/answers', (req, res) => {
+  let filtered = answerLibrary;
+
+  if (req.query.profileId) {
+    filtered = filtered.filter(a => a.profileId === req.query.profileId);
+  }
+  if (req.query.category && req.query.category !== 'all') {
+    filtered = filtered.filter(a => a.category === req.query.category);
+  }
+  if (req.query.search) {
+    const s = req.query.search.toLowerCase();
+    filtered = filtered.filter(a =>
+      a.question.toLowerCase().includes(s) || a.answer.toLowerCase().includes(s)
+    );
+  }
+
+  const limit = parseInt(req.query.limit) || 50;
+  console.log(`[Server] Answers request: ${filtered.length} results (limit ${limit})`);
+
+  res.json(filtered.slice(0, limit).map(a => ({
+    id: a.id,
+    question: a.question,
+    answer: a.versions[a.selectedVersion]?.answer || a.answer,
+    category: a.category,
+    pageContext: a.pageContext,
+    profileId: a.profileId,
+    profileName: a.profileName,
+    profileEmoji: a.profileEmoji,
+    versionsCount: a.versions.length,
+    selectedVersion: a.selectedVersion,
+    generatedAt: a.generatedAt
+  })));
+});
+
+app.post('/answers/:id/regenerate', async (req, res) => {
+  const entry = answerLibrary.find(a => a.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Answer not found' });
+
+  const profile = profiles.find(p => p.id === entry.profileId) || getActiveProfile();
+  if (!profile) return res.status(400).json({ error: 'Profile not found' });
+
+  if (entry.versions.length >= 3) {
+    return res.status(400).json({ error: 'Maximum 3 versions reached' });
+  }
+
+  try {
+    const systemPrompt = `You are an expert job application assistant. Generate a DIFFERENT answer to this question than the previous attempts. Use a different angle, different examples from the resume, or a different structure. Still be honest and use only real experience. 2-4 sentences.\n\nPrevious answers to avoid repeating:\n${entry.versions.map((v, i) => `Version ${i + 1}: ${v.answer}`).join('\n')}`;
+
+    const contextParts = [`Question: ${entry.question}`];
+    if (entry.pageContext?.companyName) contextParts.push(`Company: ${entry.pageContext.companyName}`);
+    if (entry.pageContext?.roleTitle) contextParts.push(`Role: ${entry.pageContext.roleTitle}`);
+    contextParts.push(`\n---\nCandidate Resume:\n${profile.text}`);
+
+    const answer = await callOpenAI(systemPrompt, contextParts.join('\n'), 'Answer Regeneration');
+
+    entry.versions.push({ answer, generatedAt: new Date().toISOString() });
+    entry.selectedVersion = entry.versions.length - 1;
+    saveAnswers();
+
+    console.log(`[Server] Answer regenerated: ${entry.id} (version ${entry.versions.length})`);
+    res.json({ answer, version: entry.versions.length - 1 });
+  } catch (err) {
+    console.error('[Server] Answer regeneration failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/answers/:id/select', (req, res) => {
+  const entry = answerLibrary.find(a => a.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Answer not found' });
+
+  const { version } = req.body;
+  if (version < 0 || version >= entry.versions.length) {
+    return res.status(400).json({ error: 'Invalid version' });
+  }
+
+  entry.selectedVersion = version;
+  saveAnswers();
+  console.log(`[Server] Answer version selected: ${entry.id} → v${version}`);
+  res.json({ success: true });
+});
+
 // SPA catch-all: serve frontend for any route not handled by the API
 if (fs.existsSync(FRONTEND_BUILD)) {
   app.get('*', (req, res) => {
@@ -982,5 +1213,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] Health:  http://0.0.0.0:${PORT}/health`);
   console.log(`[Server] Profiles: ${profiles.length} (active: ${getActiveProfile()?.name || 'none'})`);
   console.log(`[Server] History: ${optimizationHistory.length} entries`);
+  console.log(`[Server] Answers: ${answerLibrary.length} entries`);
   console.log(`[Server] ══════════════════════════════════════════`);
 });
