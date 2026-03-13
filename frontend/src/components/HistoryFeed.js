@@ -1,7 +1,7 @@
-import React, { memo, useCallback, useRef, useEffect, useState } from 'react';
+import React, { memo, useCallback } from 'react';
 import { List } from 'react-window';
 
-const ITEM_HEIGHT = 110;
+const ROW_HEIGHT = 110;
 const MAX_VISIBLE_HEIGHT = 700;
 
 const ScoreBadge = memo(function ScoreBadge({ score, label }) {
@@ -74,6 +74,16 @@ const HistoryCard = memo(function HistoryCard({ item, onClick }) {
   );
 });
 
+function RowComponent({ index, style, items, onSelect }) {
+  const item = items?.[index];
+  if (!item || typeof item !== 'object') return null;
+  return (
+    <div style={{ ...style, paddingBottom: 8 }}>
+      <HistoryCard item={item} onClick={() => onSelect?.(item?.id)} />
+    </div>
+  );
+}
+
 function ensureArray(val) {
   if (Array.isArray(val)) return val;
   if (val && typeof val === 'object' && Array.isArray(val.history)) return val.history;
@@ -81,35 +91,11 @@ function ensureArray(val) {
 }
 
 export default function HistoryFeed({ history: rawHistory, onSelect }) {
-  const containerRef = useRef(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-
   const items = ensureArray(rawHistory);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
 
   const handleSelect = useCallback((id) => {
     if (id && onSelect) onSelect(id);
   }, [onSelect]);
-
-  const Row = useCallback(({ index, style }) => {
-    const item = items?.[index];
-    if (!item || typeof item !== 'object') return null;
-    return (
-      <div style={{ ...style, paddingBottom: 8 }}>
-        <HistoryCard item={item} onClick={() => handleSelect(item?.id)} />
-      </div>
-    );
-  }, [items, handleSelect]);
 
   if (items.length === 0) {
     return (
@@ -125,10 +111,10 @@ export default function HistoryFeed({ history: rawHistory, onSelect }) {
     );
   }
 
-  const listHeight = Math.min(items.length * ITEM_HEIGHT, MAX_VISIBLE_HEIGHT);
+  const listHeight = Math.min(items.length * ROW_HEIGHT, MAX_VISIBLE_HEIGHT);
 
   return (
-    <div className="animate-fadeInUp" ref={containerRef}>
+    <div className="animate-fadeInUp">
       <h2 className="text-lg font-bold text-slate-200 mb-4">
         Optimized Applications
         <span className="ml-2 text-sm font-normal text-slate-500">({items.length})</span>
@@ -142,14 +128,13 @@ export default function HistoryFeed({ history: rawHistory, onSelect }) {
         </div>
       ) : (
         <List
-          height={listHeight}
-          itemCount={items.length}
-          itemSize={ITEM_HEIGHT}
-          width="100%"
+          defaultHeight={listHeight}
+          rowCount={items.length}
+          rowHeight={ROW_HEIGHT}
           overscanCount={5}
-        >
-          {Row}
-        </List>
+          rowComponent={RowComponent}
+          rowProps={{ items, onSelect: handleSelect }}
+        />
       )}
     </div>
   );

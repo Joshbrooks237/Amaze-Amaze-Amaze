@@ -20,23 +20,36 @@ function App() {
 
   const refreshData = useCallback(async (signal) => {
     try {
-      const health = await checkHealth();
+      await checkHealth();
       if (signal?.aborted) return;
       setBackendOnline(true);
+    } catch {
+      if (!signal?.aborted) {
+        setBackendOnline(false);
+        setLoading(false);
+      }
+      return;
+    }
 
+    try {
       const profileData = await getProfiles();
       if (signal?.aborted) return;
-      setProfiles(profileData.profiles || []);
-      setActiveProfileId(profileData.activeProfileId);
+      setProfiles(profileData?.profiles || []);
+      setActiveProfileId(profileData?.activeProfileId || null);
+    } catch (err) {
+      console.warn('[Indeeeed] Failed to load profiles:', err);
+    }
 
+    try {
       const hist = await getHistory();
       if (signal?.aborted) return;
-      setHistory(Array.isArray(hist) ? hist : (hist?.history || []));
-    } catch {
-      if (!signal?.aborted) setBackendOnline(false);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
+      const arr = Array.isArray(hist) ? hist : (hist?.history || []);
+      setHistory(arr);
+    } catch (err) {
+      console.warn('[Indeeeed] Failed to load history:', err);
     }
+
+    if (!signal?.aborted) setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -98,7 +111,7 @@ function App() {
               Cannot reach the backend API. Check the browser console for the API URL being used.
             </p>
             <p className="text-xs text-slate-500 font-mono bg-surface-raised inline-block px-3 py-1.5 rounded-lg">
-              API: {process.env.REACT_APP_API_URL || 'http://localhost:3001 (env var not set)'}
+              API: {process.env.REACT_APP_API_URL || '(REACT_APP_API_URL not set)'}
             </p>
           </div>
         ) : selectedId ? (

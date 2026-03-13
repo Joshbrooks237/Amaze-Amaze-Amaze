@@ -25,13 +25,16 @@ const openai = new OpenAI({
 });
 
 // ── Middleware ──
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type'] }));
+app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 app.use('/output', express.static(path.join(__dirname, 'output')));
 
-// Root route so Railway health probes and browsers don't get 404
 app.get('/', (req, res) => {
-  res.json({ service: 'Indeeeed Optimizer API', status: 'ok', health: '/health' });
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 // ── File Upload Config ──
@@ -962,6 +965,8 @@ loadPersistedData();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] ══════════════════════════════════════════`);
   console.log(`[Server] Indeeeed Optimizer API running on port ${PORT}`);
+  console.log(`[Server] PORT=${PORT} (from ${process.env.PORT ? 'env' : 'default'})`);
+  console.log(`[Server] CORS: origin=*`);
   console.log(`[Server] Health:  http://0.0.0.0:${PORT}/health`);
   console.log(`[Server] Profiles: ${profiles.length} (active: ${getActiveProfile()?.name || 'none'})`);
   console.log(`[Server] History: ${optimizationHistory.length} entries`);

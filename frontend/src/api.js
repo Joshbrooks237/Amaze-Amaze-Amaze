@@ -1,10 +1,14 @@
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || '';
 
-console.log('[Indeeeed] API_BASE =', API_BASE);
-console.log('[Indeeeed] REACT_APP_API_URL =', process.env.REACT_APP_API_URL || '(not set — using localhost fallback)');
+if (!API_BASE) {
+  console.error('[Indeeeed] REACT_APP_API_URL is not set! All API calls will fail.');
+}
+
+console.log('[Indeeeed] API_BASE =', API_BASE || '(MISSING — set REACT_APP_API_URL)');
 
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);
+  if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
   return res.json();
 }
 
@@ -12,6 +16,7 @@ export async function checkHealth() {
 
 export async function getProfiles() {
   const res = await fetch(`${API_BASE}/profiles`);
+  if (!res.ok) throw new Error(`Failed to load profiles: ${res.status}`);
   return res.json();
 }
 
@@ -68,6 +73,7 @@ export async function getResumeInfo() {
 export async function getHistory(profileId) {
   const url = profileId ? `${API_BASE}/history?profileId=${profileId}` : `${API_BASE}/history`;
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load history: ${res.status}`);
   return res.json();
 }
 
