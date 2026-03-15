@@ -60,7 +60,7 @@
       if (titleParts.length > 1) companyName = titleParts[titleParts.length - 1].trim();
     }
 
-    return { url, companyName, roleTitle };
+    return { url, companyName, roleTitle, pageTitle: document.title };
   }
 
   function findNearestInputField() {

@@ -1022,12 +1022,15 @@ app.post('/answer-question', async (req, res) => {
     }
 
     // Generate answer
-    const systemPrompt = `You are an expert job application assistant. Using only the candidate's actual experience from their resume, generate a specific, honest, compelling answer to the following job application question. Sound human and natural. Use real examples and real metrics from their background. Never fabricate experience. Keep answers concise — 2 to 4 sentences for short answer fields, up to one paragraph for longer fields. Always lead with a specific real example not a generic statement.`;
+    const systemPrompt = `You are an expert job application assistant. Using only the candidate's actual experience from their resume, generate a specific, honest, compelling answer to the following job application question. Sound human and natural. Use real examples and real metrics from their background. Never fabricate experience. Keep answers concise — 2 to 4 sentences for short answer fields, up to one paragraph for longer fields. Always lead with a specific real example not a generic statement.
+
+Try to identify the TARGET company name and job position from the page URL, page title, or surrounding page context provided. If you can identify them, use them naturally in the answer. If you CANNOT confidently identify the company name or position — do not guess, do not use any tool name or product name — just answer the question directly and professionally without mentioning any company name at all.`;
 
     const contextParts = [`Question: ${question}`];
-    if (pageContext?.companyName) contextParts.push(`Company: ${pageContext.companyName}`);
-    if (pageContext?.roleTitle) contextParts.push(`Role: ${pageContext.roleTitle}`);
-    if (pageContext?.url) contextParts.push(`Application URL: ${pageContext.url}`);
+    if (pageContext?.companyName) contextParts.push(`Company (from page): ${pageContext.companyName}`);
+    if (pageContext?.roleTitle) contextParts.push(`Role (from page): ${pageContext.roleTitle}`);
+    if (pageContext?.url) contextParts.push(`Page URL: ${pageContext.url}`);
+    if (pageContext?.pageTitle) contextParts.push(`Page Title: ${pageContext.pageTitle}`);
     contextParts.push(`\n---\nCandidate Resume:\n${profile.text}`);
 
     if (similar) {
