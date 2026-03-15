@@ -316,7 +316,7 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
  * Generates a cover letter DOCX with professional formatting
  * and bolded keywords.
  */
-async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, companyName, outputPath) {
+async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, companyName, outputPath, candidateName) {
   console.log('[DOCX] Generating cover letter document...');
 
   // Strip date lines, salutations, and signatures the AI may have included
@@ -394,6 +394,15 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
         color: COLOR_TEXT
       })],
       spacing: { before: 200, after: 80 }
+    }),
+    new Paragraph({
+      children: [new TextRun({
+        text: candidateName || 'Joshua Brooks',
+        font: FONT,
+        size: FONT_SIZE_BODY,
+        color: COLOR_TEXT
+      })],
+      spacing: { after: 80 }
     })
   );
 

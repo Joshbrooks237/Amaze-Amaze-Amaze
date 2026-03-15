@@ -894,7 +894,7 @@ app.post('/optimize', async (req, res) => {
 
     await generateResumeDOCX(rewrittenResume, keywordStrings, jobTitle, companyName, resumeFilePath, masterResume.text);
     await generateResumePDF(rewrittenResume, keywordStrings, resumePdfFilePath, masterResume.text);
-    await generateCoverLetterDOCX(coverLetterText, keywordStrings, jobTitle, companyName, coverLetterFilePath);
+    await generateCoverLetterDOCX(coverLetterText, keywordStrings, jobTitle, companyName, coverLetterFilePath, extractCandidateName(masterResume.text));
     console.log('[Server] All output files saved');
 
     const historyEntry = {
@@ -989,7 +989,7 @@ app.post('/regenerate-cover-letter', async (req, res) => {
     const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
 
     const keywordStrings = entry.keywords.map(k => k.keyword);
-    await generateCoverLetterDOCX(coverLetterText, keywordStrings, entry.jobTitle, entry.companyName, coverLetterFilePath);
+    await generateCoverLetterDOCX(coverLetterText, keywordStrings, entry.jobTitle, entry.companyName, coverLetterFilePath, extractCandidateName(getActiveProfile()?.text || entry.originalResumeText || ''));
 
     entry.coverLetterText = coverLetterText;
     entry.tone = tone;
