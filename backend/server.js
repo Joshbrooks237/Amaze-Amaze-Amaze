@@ -274,6 +274,8 @@ REWRITING RULES:
 - Keep all facts true — do not invent experience or skills.
 - Preserve the candidate's voice.
 - Rewrite: summary, skills list, 3 bullet points per "experience" role, 2 bullet points per "additionalExperience" role.
+- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal AI tool/app/software the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering. For all other roles (customer service, leasing, sales, medical, property management, brand ambassador, administrative, etc.) — REMOVE Rio Brave and any personal app/tool from the experience section entirely. Do not include it in experience, additionalExperience, skills, or summary.
+- NEVER invent metrics or scenarios. The only real metrics are: 731 units, 5.0 Google rating, 261 reviews, 98% on-time delivery, 30+ leads/week, 12% fuel reduction, 20% consultation increase. No others exist.
 
 Return ONLY valid JSON with keys: summary, skills, experience, additionalExperience.
 

@@ -319,9 +319,26 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
 async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, companyName, outputPath) {
   console.log('[DOCX] Generating cover letter document...');
 
-  const paragraphs = coverLetterText.split('\n\n').filter(p => p.trim());
+  // Strip date lines, salutations, and signatures the AI may have included
+  // since the DOCX template adds its own
+  const rawParagraphs = coverLetterText.split('\n\n').filter(p => p.trim());
+  const bodyParagraphs = rawParagraphs.filter(p => {
+    const trimmed = p.trim().toLowerCase();
+    // Skip date-only lines (e.g. "March 12, 2026" or "03/12/2026")
+    if (/^\w+\s+\d{1,2},?\s+\d{4}$/.test(p.trim())) return false;
+    if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}$/.test(p.trim())) return false;
+    // Skip standalone salutations
+    if (/^dear\s+/i.test(trimmed) && trimmed.length < 60) return false;
+    // Skip standalone closing signatures
+    if (/^(sincerely|regards|best regards|warm regards|respectfully|warmly),?\s*$/i.test(trimmed)) return false;
+    // Skip name-only lines after signature (just a name, < 40 chars, no punctuation)
+    if (trimmed.length < 40 && /^[a-z\s.\-']+$/i.test(trimmed) && !trimmed.includes(' the ') && !trimmed.includes(' and ')) return false;
+    return true;
+  });
+
   const children = [];
 
+  // Template: date
   children.push(
     new Paragraph({
       children: [new TextRun({
@@ -334,21 +351,21 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
     })
   );
 
-  if (paragraphs.length > 0 && !paragraphs[0].toLowerCase().startsWith('dear')) {
-    children.push(
-      new Paragraph({
-        children: [new TextRun({
-          text: 'Dear Hiring Manager,',
-          font: FONT,
-          size: FONT_SIZE_BODY,
-          color: COLOR_TEXT
-        })],
-        spacing: { after: 200 }
-      })
-    );
-  }
+  // Template: salutation
+  children.push(
+    new Paragraph({
+      children: [new TextRun({
+        text: 'Dear Hiring Manager,',
+        font: FONT,
+        size: FONT_SIZE_BODY,
+        color: COLOR_TEXT
+      })],
+      spacing: { after: 200 }
+    })
+  );
 
-  for (const para of paragraphs) {
+  // Body paragraphs (cleaned)
+  for (const para of bodyParagraphs) {
     children.push(
       new Paragraph({
         children: createHighlightedRuns(para.trim(), keywords),
@@ -358,20 +375,18 @@ async function generateCoverLetterDOCX(coverLetterText, keywords, jobTitle, comp
     );
   }
 
-  const lastPara = paragraphs[paragraphs.length - 1] || '';
-  if (!lastPara.toLowerCase().includes('sincerely') && !lastPara.toLowerCase().includes('regards')) {
-    children.push(
-      new Paragraph({
-        children: [new TextRun({
-          text: 'Sincerely,',
-          font: FONT,
-          size: FONT_SIZE_BODY,
-          color: COLOR_TEXT
-        })],
-        spacing: { before: 200, after: 80 }
-      })
-    );
-  }
+  // Template: single closing
+  children.push(
+    new Paragraph({
+      children: [new TextRun({
+        text: 'Sincerely,',
+        font: FONT,
+        size: FONT_SIZE_BODY,
+        color: COLOR_TEXT
+      })],
+      spacing: { before: 200, after: 80 }
+    })
+  );
 
   const doc = new Document({
     sections: [{
