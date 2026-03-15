@@ -275,7 +275,13 @@ REWRITING RULES:
 - Preserve the candidate's voice.
 - Rewrite: summary, skills list, 3 bullet points per "experience" role, 2 bullet points per "additionalExperience" role.
 - NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal AI tool/app/software the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering. For all other roles (customer service, leasing, sales, medical, property management, brand ambassador, administrative, etc.) — REMOVE Rio Brave and any personal app/tool from the experience section entirely. Do not include it in experience, additionalExperience, skills, or summary.
-- NEVER invent metrics or scenarios. The only real metrics are: 731 units, 5.0 Google rating, 261 reviews, 98% on-time delivery, 30+ leads/week, 12% fuel reduction, 20% consultation increase. No others exist.
+- NEVER invent metrics or scenarios. Each metric belongs to ONE role only — never mix them:
+  • 731 units, 5.0 Google rating, 261 reviews → A-AAAKey Mini Storage ONLY
+  • 98% on-time delivery rate → Green Cuisine medical delivery ONLY
+  • 30+ leads/week → HVAC Lead Generator ONLY
+  • 12% fuel reduction → Fleet Manager ONLY
+  • 20% consultation increase → HVAC Lead Generator ONLY
+  No other numbers exist. Never attribute a metric to the wrong company.
 - Joshua is conversational in Spanish but NOT fluent. If Spanish language skills are relevant to the role, list them as "conversational Spanish" or "working knowledge of Spanish." NEVER claim fluency, bilingual status, or "fluent in Spanish."
 
 Return ONLY valid JSON with keys: summary, skills, experience, additionalExperience.
@@ -287,7 +293,13 @@ Expected format:
 
 ABSOLUTE TRUTH RULES — EVERY WORD MUST BE DEFENSIBLE IN AN INTERVIEW:
 - NEVER invent a scenario, story, or hypothetical example. Do NOT write "for instance" or "for example" followed by a made-up situation. If you need an example, use ONLY real ones from the resume.
-- The ONLY real metrics that exist are: A-AAAKey 731 units, 5.0 Google rating with 261 reviews, 98% on-time delivery rate, 30+ leads per week, 12% fuel reduction, 20% consultation increase. NO OTHER NUMBERS OR STORIES EXIST. Do not invent any other statistics, percentages, or achievement numbers.
+- The ONLY real metrics that exist — and each MUST be attributed to the correct role:
+  • 731 units, 5.0 Google rating, 261 reviews → A-AAAKey Mini Storage ONLY
+  • 98% on-time delivery rate → Green Cuisine medical delivery ONLY
+  • 30+ leads per week → HVAC Lead Generator ONLY
+  • 12% fuel reduction → Fleet Manager ONLY
+  • 20% consultation increase → HVAC Lead Generator ONLY
+  NEVER mix metrics between roles. NEVER attribute a metric to the wrong company. NO OTHER NUMBERS OR STORIES EXIST. Do not invent any other statistics, percentages, or achievement numbers.
 - NEVER fabricate experience the candidate does not have. If the candidate managed storage facilities, do NOT claim they managed multifamily apartment complexes. If the job requires experience the candidate doesn't have, bridge the gap HONESTLY: explain how their real experience transfers. Example: "While my property management background is in storage facilities, the core skills of tenant relations, lease enforcement, delinquency management, and vendor coordination transfer directly."
 - NEVER claim software proficiency unless the software is explicitly listed in the resume. If the candidate is learning a tool, say "currently training on [tool]" — never claim proficiency.
 - Draw ONLY from what exists in the master resume. If a skill or achievement is not there, do not invent it. Use transferable skills and honest bridging instead.
@@ -1042,7 +1054,13 @@ Try to identify the TARGET company name and job position from the page URL, page
 
 CRITICAL RULES:
 - NEVER invent a scenario, story, or hypothetical example. Do NOT write "for instance" or "for example" followed by a made-up situation. If you need an example, use ONLY real ones from the resume.
-- The ONLY real metrics that exist are: A-AAAKey 731 units, 5.0 Google rating with 261 reviews, 98% on-time delivery rate, 30+ leads per week, 12% fuel reduction, 20% consultation increase. No other numbers or stories exist. Do not invent any other statistics or achievements.
+- The ONLY real metrics — each belongs to ONE specific role, never mix them:
+  • 731 units, 5.0 Google rating, 261 reviews → A-AAAKey Mini Storage ONLY
+  • 98% on-time delivery rate → Green Cuisine medical delivery ONLY
+  • 30+ leads per week → HVAC Lead Generator ONLY
+  • 12% fuel reduction → Fleet Manager ONLY
+  • 20% consultation increase → HVAC Lead Generator ONLY
+  No other numbers or stories exist. NEVER attribute a metric to the wrong company.
 - NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any AI tool/app/software the candidate may have built — these must NEVER appear in any generated answer.
 - The candidate's personal software projects, apps, or AI tools should ONLY be referenced if the job is explicitly in tech, AI, or software development AND the question specifically asks about relevant projects or technical experience.
 - For all other roles (customer service, leasing, sales, medical, property management, administrative, etc.) — draw ONLY from the candidate's professional work experience at real employers. Do not mention side projects, personal apps, or startup ventures unless they are directly relevant to the role being applied for.
@@ -1182,7 +1200,7 @@ app.post('/answers/:id/regenerate', async (req, res) => {
   }
 
   try {
-    const systemPrompt = `You are an expert job application assistant. Generate a DIFFERENT answer to this question than the previous attempts. Use a different angle, different examples from the resume, or a different structure. Still be honest and use only real experience. 2-4 sentences. NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any AI tool/app the candidate built. For non-tech roles, use only professional work experience. Joshua is conversational in Spanish but NOT fluent — say "conversational Spanish" never claim fluency or bilingual status.\n\nPrevious answers to avoid repeating:\n${entry.versions.map((v, i) => `Version ${i + 1}: ${v.answer}`).join('\n')}`;
+    const systemPrompt = `You are an expert job application assistant. Generate a DIFFERENT answer to this question than the previous attempts. Use a different angle, different examples from the resume, or a different structure. Still be honest and use only real experience. 2-4 sentences. NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any AI tool/app the candidate built. For non-tech roles, use only professional work experience. Joshua is conversational in Spanish but NOT fluent — say "conversational Spanish" never claim fluency or bilingual status. Metrics must match the correct role: 731 units/5.0 rating/261 reviews = A-AAAKey ONLY; 98% on-time delivery = Green Cuisine ONLY; 30+ leads/week & 20% consultation increase = HVAC ONLY; 12% fuel reduction = Fleet Manager ONLY. Never mix metrics between roles.\n\nPrevious answers to avoid repeating:\n${entry.versions.map((v, i) => `Version ${i + 1}: ${v.answer}`).join('\n')}`;
 
     const contextParts = [`Question: ${entry.question}`];
     if (entry.pageContext?.companyName) contextParts.push(`Company: ${entry.pageContext.companyName}`);
@@ -1246,6 +1264,7 @@ app.post('/answer-batch', async (req, res) => {
 
 CRITICAL: NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any AI tool/app the candidate may have built. For non-tech roles, draw ONLY from professional work experience at real employers — no side projects or personal apps.
 Joshua is conversational in Spanish but NOT fluent. If Spanish skills are relevant, say "conversational Spanish" — NEVER claim fluency or bilingual status.
+Metrics must match the correct role: 731 units/5.0 rating/261 reviews = A-AAAKey Mini Storage ONLY; 98% on-time delivery = Green Cuisine ONLY; 30+ leads/week & 20% consultation increase = HVAC ONLY; 12% fuel reduction = Fleet Manager ONLY. Never mix metrics between roles.
 
 Return a JSON array where each element corresponds to a field in order:
 [{"fieldIndex": 0, "answer": "..."}, {"fieldIndex": 1, "answer": "..."}, ...]
