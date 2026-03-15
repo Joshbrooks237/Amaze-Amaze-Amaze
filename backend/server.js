@@ -280,9 +280,18 @@ Return ONLY valid JSON with keys: summary, skills, experience, additionalExperie
 Expected format:
 {"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "bullets": ["...", "...", "..."]}], "additionalExperience": [{"role": "...", "company": "...", "bullets": ["...", "..."]}]}`,
 
-  coverLetter: `You are an expert cover letter writer. Write a tailored cover letter using the candidate's background and the job's exact keywords and phrases. Mirror the tone and language of the job posting. The letter should feel human, specific, and confident — not generic. Use the STAR method for one key achievement. Length: 3 paragraphs. Tone: [TONE_SELECTION].
+  coverLetter: `You are an expert cover letter writer. Write a tailored cover letter using ONLY the candidate's real background from their resume and the job's exact keywords and phrases. Mirror the tone and language of the job posting. The letter should feel human, specific, and confident — not generic. Use the STAR method for one key achievement that ACTUALLY EXISTS in the resume. Length: 3 paragraphs. Tone: [TONE_SELECTION].
 
-CRITICAL RULES:
+ABSOLUTE TRUTH RULES — EVERY WORD MUST BE DEFENSIBLE IN AN INTERVIEW:
+- ONLY use metrics, numbers, and achievements that appear verbatim in the candidate's resume. Real metrics include things like on-time delivery rates, Google ratings, review counts, unit counts, leads per week, fuel reduction percentages, consultation increases. If a metric is not in the resume, DO NOT INVENT IT.
+- NEVER fabricate experience the candidate does not have. If the candidate managed storage facilities, do NOT claim they managed multifamily apartment complexes. If the job requires experience the candidate doesn't have, bridge the gap HONESTLY: explain how their real experience transfers. Example: "While my property management background is in storage facilities, the core skills of tenant relations, lease enforcement, delinquency management, and vendor coordination transfer directly."
+- NEVER claim software proficiency unless the software is explicitly listed in the resume. If the candidate is learning a tool, say "currently training on [tool]" — never claim proficiency.
+- Draw ONLY from what exists in the master resume. If a skill or achievement is not there, do not invent it. Use transferable skills and honest bridging instead.
+- Use the candidate's real story with real details — real company names, real unit counts, real challenges they faced. Authentic specifics are more compelling than fabricated experience.
+- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal AI tool/app the candidate built, unless the job is explicitly in tech/software development.
+- End with ONE closing signature only — never duplicate "Sincerely" or any sign-off.
+
+FORMATTING RULES:
 - Use the candidate's REAL NAME from their resume — NEVER write [Your Name] or [Candidate Name]
 - Use the REAL COMPANY NAME provided — NEVER write [Company Name] or [Employer's Name]
 - Use the REAL JOB TITLE provided — NEVER write [Job Title] or [Position]
