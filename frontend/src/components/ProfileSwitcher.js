@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { createProfile, activateProfile, updateProfile, deleteProfile } from '../api';
+import { createProfile, activateProfile, updateProfile, deleteProfile, getDeletedProfiles, restoreProfile } from '../api';
 import VoiceProfile from './VoiceProfile';
 
 const EMOJI_OPTIONS = ['📄', '👤', '👩', '👨', '🧑', '💼', '🎯', '⭐', '🔥', '💎', '🦊', '🐻', '🎸', '🎨'];
@@ -99,7 +99,11 @@ export default function ProfileSwitcher({ profiles, activeProfileId, onProfilesC
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [undoToast, setUndoToast] = useState(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashItems, setTrashItems] = useState([]);
   const fileRef = useRef();
+  const undoTimer = useRef();
 
   const handleActivate = async (id) => {
     if (id === activeProfileId) return;
@@ -112,12 +116,48 @@ export default function ProfileSwitcher({ profiles, activeProfileId, onProfilesC
   };
 
   const handleDelete = async (id) => {
+    const profile = profiles.find(p => p.id === id);
     try {
-      await deleteProfile(id);
+      const result = await deleteProfile(id);
       setConfirmDeleteId(null);
       onProfilesChanged();
+
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      setUndoToast({ id, name: profile?.name || 'Profile' });
+      undoTimer.current = setTimeout(() => setUndoToast(null), 10000);
     } catch (err) {
       console.error('Failed to delete profile:', err);
+    }
+  };
+
+  const handleUndo = async (id) => {
+    try {
+      await restoreProfile(id);
+      setUndoToast(null);
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      onProfilesChanged();
+    } catch (err) {
+      console.error('Failed to restore profile:', err);
+    }
+  };
+
+  const loadTrash = async () => {
+    try {
+      const items = await getDeletedProfiles();
+      setTrashItems(items);
+      setShowTrash(true);
+    } catch (err) {
+      console.error('Failed to load trash:', err);
+    }
+  };
+
+  const handleRestoreFromTrash = async (id) => {
+    try {
+      await restoreProfile(id);
+      setTrashItems(prev => prev.filter(p => p.id !== id));
+      onProfilesChanged();
+    } catch (err) {
+      console.error('Failed to restore profile:', err);
     }
   };
 
@@ -263,6 +303,76 @@ export default function ProfileSwitcher({ profiles, activeProfileId, onProfilesC
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Trash bin link */}
+      {!showTrash && (
+        <button
+          onClick={loadTrash}
+          className="mt-3 text-[10px] text-slate-600 hover:text-slate-400 transition-colors w-full text-center"
+        >
+          🗑️ Recently Deleted
+        </button>
+      )}
+
+      {/* Trash bin */}
+      {showTrash && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recently Deleted</h3>
+            <button
+              onClick={() => setShowTrash(false)}
+              className="text-[10px] text-slate-600 hover:text-slate-400"
+            >
+              Hide
+            </button>
+          </div>
+          {trashItems.length === 0 ? (
+            <p className="text-[10px] text-slate-600 text-center py-2">Trash is empty</p>
+          ) : (
+            <div className="space-y-1.5">
+              {trashItems.map(p => (
+                <div key={p.id} className="flex items-center gap-2 bg-surface-raised border border-surface-overlay rounded-lg px-3 py-2">
+                  <span className="text-sm">{p.emoji || '📄'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-slate-400 truncate">{p.name}</p>
+                    <p className="text-[9px] text-slate-600">
+                      Deleted {p.deletedAt ? new Date(p.deletedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'recently'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRestoreFromTrash(p.id)}
+                    className="px-2.5 py-1 text-[10px] font-bold text-accent bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors shrink-0"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Undo toast */}
+      {undoToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface-raised border border-surface-overlay
+                        rounded-xl px-4 py-3 shadow-xl flex items-center gap-3 animate-fadeInUp">
+          <p className="text-xs text-slate-300">
+            <strong>{undoToast.name}</strong> deleted
+          </p>
+          <button
+            onClick={() => handleUndo(undoToast.id)}
+            className="px-3 py-1.5 text-xs font-bold text-accent bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors"
+          >
+            Undo
+          </button>
+          <button
+            onClick={() => { setUndoToast(null); if (undoTimer.current) clearTimeout(undoTimer.current); }}
+            className="text-slate-600 hover:text-slate-400 transition-colors"
+          >
+            <span className="text-xs">✕</span>
+          </button>
         </div>
       )}
     </div>

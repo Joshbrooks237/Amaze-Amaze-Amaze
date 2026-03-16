@@ -92,6 +92,7 @@ const LEGACY_RESUME_PATH = path.join(DATA_DIR, 'master-resume.json');
 
 let profiles = [];          // [{ id, name, emoji, text, fileName, filePath, uploadedAt, voiceProfiles, activeVoiceProfileId }]
 let activeProfileId = null;
+let deletedProfiles = [];   // soft-delete trash bin
 let optimizationHistory = [];
 
 const ANSWERS_PATH = path.join(DATA_DIR, 'answer-library.json');
@@ -141,7 +142,8 @@ function loadPersistedData() {
       const data = JSON.parse(fs.readFileSync(PROFILES_PATH, 'utf-8'));
       profiles = data.profiles || [];
       activeProfileId = data.activeProfileId || (profiles[0]?.id || null);
-      console.log(`[Server] Loaded ${profiles.length} profile(s), active: ${activeProfileId}`);
+      deletedProfiles = data.deletedProfiles || [];
+      console.log(`[Server] Loaded ${profiles.length} profile(s), active: ${activeProfileId}, trash: ${deletedProfiles.length}`);
     }
   } catch (err) {
     console.error('[Server] Failed to load profiles:', err.message);
@@ -163,7 +165,7 @@ function loadPersistedData() {
 
 function saveProfiles() {
   try {
-    fs.writeFileSync(PROFILES_PATH, JSON.stringify({ profiles, activeProfileId }, null, 2));
+    fs.writeFileSync(PROFILES_PATH, JSON.stringify({ profiles, activeProfileId, deletedProfiles }, null, 2));
   } catch (err) {
     console.error('[Server] Failed to save profiles:', err.message);
   }
@@ -663,12 +665,35 @@ app.delete('/profiles/:id', (req, res) => {
   if (idx === -1) return res.status(404).json({ error: 'Profile not found' });
 
   const removed = profiles.splice(idx, 1)[0];
+  removed.deletedAt = new Date().toISOString();
+  deletedProfiles.unshift(removed);
   if (activeProfileId === removed.id) {
     activeProfileId = profiles[0]?.id || null;
   }
   saveProfiles();
-  console.log(`[Server] Profile deleted: ${removed.name}`);
-  res.json({ success: true, activeProfileId });
+  console.log(`[Server] Profile moved to trash: ${removed.name}`);
+  res.json({ success: true, activeProfileId, canUndo: true, deletedId: removed.id });
+});
+
+app.get('/profiles/trash', (req, res) => {
+  res.json(deletedProfiles.map(p => ({
+    id: p.id, name: p.name, emoji: p.emoji,
+    fileName: p.fileName, textLength: p.text?.length || 0,
+    deletedAt: p.deletedAt
+  })));
+});
+
+app.post('/profiles/:id/restore', (req, res) => {
+  const idx = deletedProfiles.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Deleted profile not found' });
+
+  const restored = deletedProfiles.splice(idx, 1)[0];
+  delete restored.deletedAt;
+  profiles.push(restored);
+  if (!activeProfileId) activeProfileId = restored.id;
+  saveProfiles();
+  console.log(`[Server] Profile restored: ${restored.name}`);
+  res.json({ success: true, profile: { id: restored.id, name: restored.name, emoji: restored.emoji } });
 });
 
 app.post('/profiles/:id/activate', (req, res) => {

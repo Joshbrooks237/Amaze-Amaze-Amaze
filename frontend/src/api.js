@@ -111,6 +111,20 @@ export async function regenerateAnswer(id) {
   return res.json();
 }
 
+// ── Profile Trash / Undo Delete ──
+
+export async function getDeletedProfiles() {
+  const res = await fetch(`${API_BASE}/profiles/trash`);
+  if (!res.ok) throw new Error('Failed to load trash');
+  return res.json();
+}
+
+export async function restoreProfile(id) {
+  const res = await fetch(`${API_BASE}/profiles/${id}/restore`, { method: 'POST' });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to restore profile'); }
+  return res.json();
+}
+
 // ── Voice Profile API ──
 
 export async function getVoiceProfiles(profileId) {
