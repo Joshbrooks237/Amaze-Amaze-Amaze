@@ -71,7 +71,41 @@ function sectionsToText(sections) {
 
 function SectionEditor({ section, value, onChange }) {
   const [expanded, setExpanded] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef();
   const hasContent = value && value.trim().length > 0;
+
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      if (file.name.endsWith('.txt')) {
+        const text = await file.text();
+        const combined = value ? `${value}\n\n${text}` : text;
+        onChange(section.key, combined);
+      } else if (file.name.endsWith('.docx')) {
+        const formData = new FormData();
+        formData.append('voiceFile', file);
+        formData.append('name', '_parse_only_');
+        formData.append('text', '_');
+        const API_BASE = process.env.REACT_APP_API_URL || '';
+        const res = await fetch(`${API_BASE}/parse-file`, { method: 'POST', body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          const combined = value ? `${value}\n\n${data.text}` : data.text;
+          onChange(section.key, combined);
+        } else {
+          const text = await file.text();
+          const combined = value ? `${value}\n\n${text}` : text;
+          onChange(section.key, combined);
+        }
+      }
+    } catch (err) {
+      console.error('File upload failed:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className={`rounded-lg border transition-all ${
@@ -105,6 +139,32 @@ function SectionEditor({ section, value, onChange }) {
             rows={4}
             placeholder={section.placeholder}
           />
+          <div className="flex items-center gap-2 mt-1.5">
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.docx"
+              className="hidden"
+              onChange={e => { handleFileUpload(e.target.files[0]); e.target.value = ''; }}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1 px-2 py-1 text-[9px] font-medium text-slate-500 bg-surface border
+                         border-surface-overlay rounded hover:text-accent hover:border-accent/30 transition-colors
+                         disabled:opacity-50"
+            >
+              <span>📎</span> {uploading ? 'Reading...' : 'Upload .txt / .docx'}
+            </button>
+            {hasContent && (
+              <button
+                onClick={() => onChange(section.key, '')}
+                className="px-2 py-1 text-[9px] text-slate-600 hover:text-danger transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -681,6 +681,18 @@ app.post('/profiles/:id/activate', (req, res) => {
   res.json({ success: true, activeProfileId });
 });
 
+// ── File Parsing Utility ──
+
+app.post('/parse-file', upload.single('voiceFile'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+  try {
+    const text = await parseResume(req.file.path);
+    res.json({ text: text.trim() });
+  } catch (err) {
+    res.status(400).json({ error: 'Could not read file: ' + err.message });
+  }
+});
+
 // ── Voice Profile Routes ──
 
 app.get('/profiles/:id/voice-profiles', (req, res) => {
