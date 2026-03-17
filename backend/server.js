@@ -390,47 +390,42 @@ Return ONLY valid JSON with keys: summary, skills, experience, additionalExperie
 Expected format:
 {"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "bullets": ["...", "...", "..."]}], "additionalExperience": [{"role": "...", "company": "...", "bullets": ["...", "..."]}]}`,
 
-  coverLetter: `You are a master cover letter writer. Tone: [TONE_SELECTION].
+  coverLetter: `You are writing a cover letter for a real person. Not a template. Not a keyword dump. A letter from someone with a life, with bills, with gratitude for what they've built and quiet confidence in what they can do next. Tone: [TONE_SELECTION].
 
-OPENING HOOK: Start with an engaging observation, comparison, or insight related to the role. NEVER open with "I am writing to apply" or any generic opener. Choose from these hook styles:
-- Insight: A sharp observation about the industry or role that shows you get it.
-- Comparison: Connect an unexpected real experience to the job in a surprising way.
-- Observation: A specific, human detail about the company or role that shows genuine awareness.
-Connect the candidate's real experience to the job responsibilities from the first sentence.
+THE SOUL OF THIS LETTER:
+This person is not desperate. They are not begging. They are someone who has worked hard, learned real things in real places, and is offering that experience to a company that needs it. The letter should read like it was written by someone who respects the reader's time, understands the work, and has genuine appreciation for the opportunity — without groveling. Confident but grounded. Grateful but not needy. Human above all.
 
-TONE & VOICE: Human, confident, professional, with light personality. Occasionally use short reflective sentences inspired by haiku rhythm — brief, contemplative, grounding. Never format as a poem. Be charming, not clownish. The goal is a cover letter that feels like a real person wrote it — someone you'd want to grab coffee with.
+OPENING HOOK: Start with something real — an observation, a moment, a connection between the candidate's life and this role. NEVER open with "I am writing to apply" or any generic opener. The first sentence should make someone want to read the second one.
 
-TONE GUIDE — match style to the selected tone:
-- Professional: Polished, formal, corporate-appropriate. Clean structure, measured language.
-- Confident: Bold, assertive, leads with impact. Numbers up front.
-- Conversational: Relaxed, friendly, natural rhythm. Contractions welcome.
-- Casual: Laid-back, approachable, zero corporate speak. Still competent.
-- Funny: Witty, clever, self-aware humor. Dry wit — NOT slapstick. The cover letter they read twice.
-- Fun: Light, upbeat, playful energy. Charm and positivity while keeping it real.
-- Storyteller: Narrative-driven. Open with a scene. Arc from challenge to impact.
-- Bold: Unapologetic, high-conviction. "You need X — I already have it" energy.
-- Warm: Empathetic, people-first, relationship-focused. Heart on sleeve but substantive.
-- Direct: No fluff. Short punchy sentences. Every word earns its place.
-- Enthusiastic: High energy, genuine excitement. Shows real company research.
+VOICE: Write like a thoughtful person sits down and writes a letter — not like an AI filling in blanks. Occasionally use a short reflective sentence that lands with weight. Natural rhythm. Real words. The kind of letter where the reader thinks "this person actually gets it."
 
-CONTENT REQUIREMENTS:
-- Include at least one measurable achievement or metric from the resume.
-- Include at least one real experience from the resume with specific details.
-- Naturally incorporate ATS keywords from the job description.
-- Emphasize reliability, safety, responsibility, service, or results as relevant to the role.
+TONE GUIDE:
+- Professional: Polished but still warm. Measured language, clear respect for the reader.
+- Confident: Leads with what they bring. Not arrogant — earned.
+- Conversational: Like talking to someone you respect over coffee. Contractions, natural flow.
+- Casual: Relaxed, real talk, zero corporate speak. Still shows you're good at what you do.
+- Funny: Dry wit, self-aware charm. Makes the reader smile. Still gets hired.
+- Fun: Upbeat, genuine energy. The "I'd want to work with this person" letter.
+- Storyteller: Opens with a real moment. Arc from challenge to what it taught them.
+- Bold: High-conviction. "You need someone who can handle this — I already have."
+- Warm: People-first. Emphasizes teamwork, trust, community. Heart visible.
+- Direct: No filler. Short sentences. Respects the reader's time completely.
+- Enthusiastic: Genuinely excited. Shows they actually looked into the company.
 
-HUMAN-TOUCH RULE: Inject one micro-personal detail per cover letter — a specific observation drawn from the job description, company name, industry, or location — in 1-2 sentences max. Place it in the hook or middle paragraph. This is what makes it feel like a real person wrote it for THIS specific job, not a template. Examples of the kind of detail to aim for:
-- Referencing the company's specific community or service area
-- Connecting a real past experience to a specific responsibility in the job posting
-- A brief reflective thought that shows genuine understanding of what the work means to real people
-This detail must feel natural, not forced. Never fabricate company facts — use only what's in the job description or company name.
+CONTENT:
+- Include at least one real achievement with a real number from the resume.
+- Include at least one specific experience that connects to this job.
+- If relevant keywords from the job description fit naturally, include a few — but NEVER force them. This is a letter from a person, not a keyword checklist.
+- Show why the candidate's real experience transfers to this specific role.
 
-PARAGRAPH STRUCTURE: 3-4 paragraphs, under one page.
-- First paragraph: Hook + connection to role.
-- Middle paragraphs: Achievements, experiences, and skills relevant to the job.
-- Last paragraph: Reflective sentence + confident closing.
+HUMAN-TOUCH: Include one moment that could only come from a real person — a detail about the company's community, a reflection on what the work means, a connection between their past and this role's future. 1-2 sentences, placed wherever it feels natural.
 
-CLOSING SENTENCE: The final sentence must be 18-25 words, confident and natural. Connect the candidate's real strengths to the company's mission or role. Prefer concrete words like reliability, safety, service, results. NEVER use clichés like "I am excited to apply", "I look forward to the opportunity", "I would love to discuss", or "Thank you for your consideration."
+STRUCTURE: 3 paragraphs, under one page.
+- First: Hook that connects their story to this role.
+- Middle: Real experience, real numbers, why they're the right fit.
+- Last: A reflective thought and a closing sentence that sounds like a promise, not a plea.
+
+CLOSING: 18-25 words. Confident and natural. Connect their strengths to the work. NEVER use "I am excited to apply", "I look forward to", or "Thank you for your consideration." Write a closer that a real person would actually say.
 
 ABSOLUTE TRUTH RULES — EVERY WORD MUST BE DEFENSIBLE IN AN INTERVIEW:
 - NEVER invent a scenario, story, or hypothetical example. Do NOT write "for instance" or "for example" followed by a made-up situation. If you need an example, use ONLY real ones from the resume.
@@ -637,16 +632,21 @@ Examples of good output:
 
 async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone = 'Professional', meta = {}) {
   let prompt = PROMPTS.coverLetter.replace('[TONE_SELECTION]', tone);
-  const keywordList = keywords.keywords.map(k => k.keyword).join(', ');
-
   const candidateName = meta.candidateName || extractCandidateName(meta.resumeText || '');
   const companyName = meta.companyName || 'the company';
   const jobTitle = meta.jobTitle || 'the position';
+  const personalNote = meta.personalNote || '';
+  const voiceText = meta.voiceText || '';
+  const keywordList = (keywords.keywords || []).map(k => k.keyword).join(', ');
+  const today = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
 
+  // ── Parallel: Claude Muse + Insight Snippet ──
   const [museDirection, insightSnippet] = await Promise.all([
     claudeMuse(
       tone,
-      meta.voiceText || '',
+      voiceText,
       `Cover letter for ${jobTitle} at ${companyName}. Resume summary: ${resumeSummary?.substring(0, 200) || 'N/A'}`
     ),
     generateInsightSnippet(jobDescription, companyName, jobTitle)
@@ -656,13 +656,8 @@ async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone
     prompt += `\n\nCREATIVE DIRECTION FROM WRITING DIRECTOR (follow this closely — it defines the voice and character of this specific letter):\n${museDirection}`;
   }
   if (insightSnippet) {
-    prompt += `\n\nCOMPANY/JOB INSIGHT (weave this naturally into the hook or middle paragraph — do not quote verbatim, adapt it to fit the letter's voice):\n${insightSnippet}`;
+    prompt += `\n\nCOMPANY/JOB INSIGHT (weave this naturally into the letter — do not quote verbatim, adapt it to fit the voice):\n${insightSnippet}`;
   }
-  const today = new Date().toLocaleDateString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric'
-  });
-
-  const personalNote = meta.personalNote || '';
 
   const contentParts = [
     `Candidate Name: ${candidateName}`,
@@ -681,7 +676,6 @@ async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone
     console.log('[Server] Personal note included in cover letter prompt:', personalNote.trim().substring(0, 80) + '...');
   }
 
-  const voiceText = meta.voiceText || '';
   if (voiceText) {
     contentParts.push(
       ``,
@@ -702,7 +696,7 @@ async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone
     resumeSummary,
     ``,
     `---`,
-    `Key Terms to Include:`,
+    `Relevant terms from the job (use naturally where they fit — do NOT force them):`,
     keywordList
   );
 
@@ -1324,6 +1318,158 @@ app.post('/optimize', async (req, res) => {
   } catch (err) {
     console.error('[Server] Optimization failed:', err.message);
     console.error(err.stack);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Shake & Bake — re-optimize an existing optimization for a better score
+app.post('/re-optimize/:id', async (req, res) => {
+  const { id } = req.params;
+  console.log(`[Server] ═══════════════════════════════════════`);
+  console.log(`[Server] Shake & Bake re-optimize: ${id}`);
+
+  const entry = optimizationHistory.find(h => h.id === id);
+  if (!entry) return res.status(404).json({ error: 'Optimization not found' });
+
+  const masterResume = getActiveProfile();
+  if (!masterResume) return res.status(400).json({ error: 'No active profile' });
+
+  const MATCH_THRESHOLD = 75;
+  const shakeStrategies = [
+    {
+      name: 'Aggressive keyword weaving',
+      instruction: `SHAKE & BAKE MODE: The previous best score was ${entry.matchScore}%. Beat it. Rewrite every bullet point to front-load the exact terminology from the job description. Use the job posting's own phrases and language. Be aggressive with keyword incorporation — every sentence should pull its weight. Keep all facts truthful but maximize relevance to THIS specific job.`
+    },
+    {
+      name: 'Role-mirroring approach',
+      instruction: `SHAKE & BAKE MODE: Previous score: ${entry.matchScore}%. Write as if the candidate already holds this role. Mirror the job description's responsibilities in each bullet — show parallel experience using the EXACT same language the employer used. Restructure the summary to read like a description of the ideal candidate. Stay truthful but align every word to the posting.`
+    },
+    {
+      name: 'Skills-first restructure',
+      instruction: `SHAKE & BAKE MODE: Previous score: ${entry.matchScore}%. Restructure the entire resume around the job's required skills. Lead each experience section with the most relevant skill match. Expand the skills list to include every legitimate variation and synonym. Write a summary that hits at least 5 of the top keywords in the first two sentences.`
+    },
+    {
+      name: 'Deep keyword saturation',
+      instruction: `SHAKE & BAKE MODE: Previous score: ${entry.matchScore}%. This is the final push. Saturate the resume with keywords from the job description. Use longer, more detailed bullet points that naturally incorporate 2-3 keywords each. Add a "Core Competencies" or "Areas of Expertise" section if it helps pack in more relevant terms. Maximum keyword density, minimum fluff.`
+    }
+  ];
+
+  try {
+    const keywords = { keywords: entry.keywords };
+    let bestResult = null;
+    let bestScore = entry.matchScore;
+    let attemptsMade = 0;
+
+    for (let attempt = 0; attempt < shakeStrategies.length; attempt++) {
+      const strategy = shakeStrategies[attempt];
+      console.log(`[Server] Shake ${attempt + 1}/${shakeStrategies.length}: ${strategy.name}`);
+
+      let rewrittenResume;
+      try {
+        const voiceText = getActiveVoiceText(masterResume);
+        rewrittenResume = await rewriteResumeWithStrategy(
+          masterResume.text, keywords, strategy.instruction, voiceText
+        );
+      } catch (parseErr) {
+        console.error(`[Server] Shake ${attempt + 1} failed: ${parseErr.message}`);
+        continue;
+      }
+
+      const scoring = calculateMatchScore(masterResume.text, keywords, rewrittenResume);
+      console.log(`[Server] Shake ${attempt + 1} score: ${scoring.matchScore}% (best: ${bestScore}%)`);
+      attemptsMade++;
+
+      if (scoring.matchScore > bestScore) {
+        bestScore = scoring.matchScore;
+
+        const coverLetterText = await generateCoverLetter(
+          entry.fullDescription,
+          rewrittenResume.summary,
+          keywords,
+          entry.tone || 'Professional',
+          {
+            candidateName: extractCandidateName(masterResume.text),
+            companyName: entry.companyName,
+            jobTitle: entry.jobTitle,
+            resumeText: masterResume.text,
+            voiceText: getActiveVoiceText(masterResume)
+          }
+        );
+
+        bestResult = { rewrittenResume, coverLetterText, scoring };
+      }
+
+      if (scoring.matchScore >= MATCH_THRESHOLD) {
+        console.log(`[Server] Shake & Bake hit ${MATCH_THRESHOLD}% threshold!`);
+        break;
+      }
+    }
+
+    if (!bestResult) {
+      console.log('[Server] Shake & Bake could not beat previous score');
+      return res.json({
+        improved: false,
+        message: `Tried ${attemptsMade} strategies but couldn't beat ${entry.matchScore}%. Current version is the best we can do.`,
+        matchScore: entry.matchScore
+      });
+    }
+
+    const { rewrittenResume, coverLetterText, scoring } = bestResult;
+    const safeCompany = sanitizeForFilename(entry.companyName);
+    const safeTitle = sanitizeForFilename(entry.jobTitle);
+    const version = optimizationHistory.filter(
+      h => h.companyName === entry.companyName && h.jobTitle === entry.jobTitle
+    ).length + 1;
+
+    const resumeFileName = `resume-v${version}-${safeCompany}-${safeTitle}.docx`;
+    const resumePdfFileName = `resume-v${version}-${safeCompany}-${safeTitle}.pdf`;
+    const coverLetterFileName = `coverletter-v${version}-${safeCompany}-${safeTitle}.docx`;
+    const resumeFilePath = path.join(__dirname, 'output', resumeFileName);
+    const resumePdfFilePath = path.join(__dirname, 'output', resumePdfFileName);
+    const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
+    const keywordStrings = entry.keywords.map(k => k.keyword);
+
+    await generateResumeDOCX(rewrittenResume, keywordStrings, entry.jobTitle, entry.companyName, resumeFilePath, masterResume.text);
+    await generateResumePDF(rewrittenResume, keywordStrings, resumePdfFilePath, masterResume.text);
+    await generateCoverLetterDOCX(coverLetterText, keywordStrings, entry.jobTitle, entry.companyName, coverLetterFilePath, extractCandidateName(masterResume.text));
+
+    // Update the history entry in place
+    entry.rewrittenResume = rewrittenResume;
+    entry.coverLetterText = coverLetterText;
+    entry.matchScore = scoring.matchScore;
+    entry.originalScore = scoring.originalScore;
+    entry.keywordDetails = scoring.details;
+    entry.retryAttempts = (entry.retryAttempts || 0) + attemptsMade;
+    entry.belowThreshold = scoring.matchScore < MATCH_THRESHOLD;
+    entry.resumePath = `/output/${resumeFileName}`;
+    entry.resumePdfPath = `/output/${resumePdfFileName}`;
+    entry.coverLetterPath = `/output/${coverLetterFileName}`;
+    entry.resumeFileName = resumeFileName;
+    entry.resumePdfFileName = resumePdfFileName;
+    entry.coverLetterFileName = coverLetterFileName;
+    entry.lastShakeBake = new Date().toISOString();
+    saveHistory();
+
+    console.log(`[Server] Shake & Bake complete! ${entry.matchScore - (scoring.matchScore - bestScore + entry.matchScore)}% → ${scoring.matchScore}%`);
+    res.json({
+      improved: true,
+      matchScore: scoring.matchScore,
+      previousScore: entry.matchScore - (scoring.matchScore - bestScore + entry.matchScore),
+      rewrittenResume,
+      coverLetterText,
+      keywordDetails: scoring.details,
+      retryAttempts: entry.retryAttempts,
+      belowThreshold: entry.belowThreshold,
+      resumePath: entry.resumePath,
+      resumePdfPath: entry.resumePdfPath,
+      coverLetterPath: entry.coverLetterPath,
+      resumeFileName,
+      resumePdfFileName,
+      coverLetterFileName
+    });
+
+  } catch (err) {
+    console.error('[Server] Shake & Bake failed:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

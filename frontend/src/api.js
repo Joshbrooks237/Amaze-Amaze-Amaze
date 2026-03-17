@@ -89,6 +89,12 @@ export async function regenerateCoverLetter(optimizationId, tone, personalNote =
   return res.json();
 }
 
+export async function reOptimize(optimizationId) {
+  const res = await fetch(`${API_BASE}/re-optimize/${optimizationId}`, { method: 'POST' });
+  if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Re-optimization failed'); }
+  return res.json();
+}
+
 export function getDownloadUrl(filePath) {
   return `${API_BASE}${filePath}`;
 }

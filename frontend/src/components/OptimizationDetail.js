@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getOptimizationDetail, regenerateCoverLetter, getDownloadUrl, refineWithFeedback } from '../api';
+import { getOptimizationDetail, regenerateCoverLetter, getDownloadUrl, refineWithFeedback, reOptimize } from '../api';
 import KeywordPanel from './KeywordPanel';
 
 const TONES = [
@@ -38,6 +38,7 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
   const [regenerating, setRegenerating] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [refining, setRefining] = useState(false);
+  const [shaking, setShaking] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -101,6 +102,37 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
     }
   };
 
+  const handleShakeBake = async () => {
+    setShaking(true);
+    try {
+      const result = await reOptimize(optimizationId);
+      if (result.improved) {
+        setData(prev => ({
+          ...prev,
+          matchScore: result.matchScore,
+          rewrittenResume: result.rewrittenResume,
+          coverLetterText: result.coverLetterText,
+          keywordDetails: result.keywordDetails,
+          retryAttempts: result.retryAttempts,
+          belowThreshold: result.belowThreshold,
+          resumePath: result.resumePath,
+          resumePdfPath: result.resumePdfPath,
+          coverLetterPath: result.coverLetterPath,
+          resumeFileName: result.resumeFileName,
+          resumePdfFileName: result.resumePdfFileName,
+          coverLetterFileName: result.coverLetterFileName,
+        }));
+      } else {
+        setError(result.message);
+        setTimeout(() => setError(''), 5000);
+      }
+    } catch (err) {
+      setError(`Shake & Bake failed: ${err.message}`);
+    } finally {
+      setShaking(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -139,6 +171,22 @@ export default function OptimizationDetail({ optimizationId, onBack }) {
           >
             <span>📄</span> Resume DOCX
           </a>
+          <button
+            onClick={handleShakeBake}
+            disabled={shaking}
+            className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all flex items-center gap-2
+              ${shaking
+                ? 'bg-yellow-800/50 text-yellow-300/70 cursor-not-allowed'
+                : 'bg-yellow-600 text-white hover:bg-yellow-500 hover:shadow-lg hover:shadow-yellow-600/20'}`}
+            title="Re-run optimization for a better score"
+          >
+            {shaking ? (
+              <div className="w-4 h-4 border-2 border-yellow-300/30 border-t-yellow-300 rounded-full animate-spin" />
+            ) : (
+              <span>🔥</span>
+            )}
+            {shaking ? 'Shaking...' : 'Shake & Bake'}
+          </button>
           {data.resumePdfPath && (
             <a
               href={getDownloadUrl(data.resumePdfPath)}
