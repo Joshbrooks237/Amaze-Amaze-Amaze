@@ -24,28 +24,29 @@ const anthropic = process.env.ANTHROPIC_API_KEY
   : null;
 
 const MUSE_HOOKS = [
-  'a vivid real moment from their experience', 'a bold contrarian claim', 'a wry one-liner observation about the industry',
-  'a "nobody expected this" underdog story', 'a direct challenge to the reader', 'a quiet confident statement of fact',
-  'a question that makes the reader think', 'a short punchy declaration', 'a scene-setting moment like the opening of a film',
-  'a self-deprecating aside that reveals character', 'a surprising connection between two unrelated experiences',
-  'an honest admission that turns into a strength', 'a callback to something specific in the job posting',
+  'a simple, honest connection between their past work and this role',
+  'a quiet confident statement about what they know how to do',
+  'a real detail from the job posting that caught their eye',
+  'a short sentence about what this kind of work means to them',
+  'a plain-spoken observation about the industry',
+  'a grounded reflection on a real challenge they handled',
+  'a callback to something specific in the job posting',
 ];
 const MUSE_RHYTHMS = [
-  'Short punchy sentences. Staccato. Let the facts hit.', 'Flowing narrative that builds momentum paragraph by paragraph.',
-  'Mix of short and long — punchy opener, then unfold into detail.', 'Conversational cadence — like telling a story over drinks.',
-  'Measured and deliberate — every word chosen with care.', 'Fast and energetic — match the pace to the excitement.',
-  'Start slow and quiet, then build to a crescendo of confidence.',
+  'Plain, clear sentences. Like someone explaining their experience to a friend.',
+  'Conversational cadence — relaxed, natural, not trying to impress.',
+  'Mix of short and medium sentences. No long-winded paragraphs.',
+  'Measured and honest. Every sentence earns its place.',
+  'Warm and direct. Says what it means without dressing it up.',
 ];
 const MUSE_VIBES = [
-  'the person at the party who tells one great story and everyone remembers them',
-  'your smartest friend who somehow makes everything sound effortless',
-  'the coworker who everyone trusts to handle the hard conversation',
-  'someone who just got back from doing something amazing and is humbly excited about it',
-  'the person who makes you laugh mid-interview and you realize you want to work with them',
-  'a seasoned pro who has nothing to prove but proves it anyway',
-  'someone writing a letter to a company they genuinely admire',
-  'the candidate whose cover letter the hiring manager reads out loud to their team',
-  'a natural leader who communicates through stories, not bullet points',
+  'your reliable coworker who just does their job well and everyone respects them',
+  'someone who has been through some things and came out steady',
+  'the person at the interview who doesn\'t try to impress — they just are impressive',
+  'a seasoned worker who lets their track record do the talking',
+  'someone who is grateful for the opportunity but knows what they bring to the table',
+  'a real person writing a real letter at their kitchen table',
+  'the candidate the hiring manager remembers because they sounded genuine',
 ];
 
 function pickRandom(arr, n = 1) {
@@ -65,23 +66,21 @@ async function claudeMuse(tone, voiceProfile, context) {
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 600,
-      system: `You are a creative writing director. Your job is to generate precise, vivid VOICE DIRECTION that another AI will follow when writing a cover letter or answer.
+      system: `You are a voice coach for cover letters. Your job is to give simple, grounded direction that helps another AI write like a REAL PERSON — not like an AI trying to be creative.
 
-You don't write the actual content — you write the creative brief. Think of yourself as the director telling an actor exactly how to deliver a scene.
+CRITICAL RULES:
+- NEVER suggest dramatic metaphors, surgical imagery, or overwrought language.
+- NEVER suggest words like "hemorrhaging," "tumor," "ground zero," "paradigm," "synergy," "diagnostic mindset," or any word a normal person wouldn't say at a kitchen table.
+- NEVER suggest the letter try to be clever. Simple and honest beats creative and forced.
+- The goal is a letter that sounds like a real human being wrote it. Someone with a life, bills, and real experience.
 
-IMPORTANT: Every brief you write must feel FRESH and DIFFERENT. Never repeat the same formula. You are given random creative seeds below — use them as starting inspiration, then riff in your own direction.
-
-Based on the tone, voice profile, and context, produce a short set of instructions (5-10 bullet points) covering:
-- Exact emotional register (warm but not syrupy, witty but not trying hard, etc.)
-- Sentence rhythm and pacing
-- What kind of opening hook to use — try something unexpected
-- Which real stories or experiences to lead with and WHY
-- Specific phrases or vocabulary that sound like THIS person
-- What to absolutely avoid (cliches, corporate buzzwords, specific patterns)
-- How to handle humor (if any) — dry? self-deprecating? observational?
-- The "vibe check" — if this letter were a person at a party, who would they be?
-
-Be specific and opinionated. Generic direction like "be professional" is useless. Say things like "Open with the 731-unit storage facility story but frame it as an underdog moment — nobody expected that turnaround." or "Write like someone who's genuinely excited but too cool to show it all at once."`,
+Produce 5-8 bullet points covering:
+- Emotional register: Keep it grounded. Warm but not syrupy. Confident but not cocky.
+- Which ONE real experience to lead with and a simple reason why it connects to this job.
+- What kind of plain, honest opening to use — no dramatic hooks, just a real sentence.
+- Sentence style: Plain language. Short sentences. No thesaurus words.
+- What to AVOID: dramatic metaphors, corporate buzzwords, try-hard creativity, forced cleverness.
+- The vibe: This letter should read like it was written by a real person at their kitchen table — someone who knows what they bring and isn't trying to impress, just communicate.`,
       messages: [{
         role: 'user',
         content: `Tone selected: ${tone}
@@ -395,9 +394,36 @@ Expected format:
 THE SOUL OF THIS LETTER:
 This person is not desperate. They are not begging. They are someone who has worked hard, learned real things in real places, and is offering that experience to a company that needs it. The letter should read like it was written by someone who respects the reader's time, understands the work, and has genuine appreciation for the opportunity — without groveling. Confident but grounded. Grateful but not needy. Human above all.
 
-OPENING HOOK: Start with something real — an observation, a moment, a connection between the candidate's life and this role. NEVER open with "I am writing to apply" or any generic opener. The first sentence should make someone want to read the second one.
+OPENING HOOK: Start with something real and grounded — a simple connection between the candidate's experience and this role. NEVER open with "I am writing to apply" or any generic opener. But also NEVER open with dramatic metaphors, overwrought imagery, or try-hard creative writing. No "hemorrhaging," no "tumors," no "ground zero." Just a clear, honest first sentence that makes the reader want to keep going.
 
-VOICE: Write like a thoughtful person sits down and writes a letter — not like an AI filling in blanks. Occasionally use a short reflective sentence that lands with weight. Natural rhythm. Real words. The kind of letter where the reader thinks "this person actually gets it."
+VOICE: Write like a real person sat down at their kitchen table and wrote this. Plain language. No thesaurus words. No corporate buzzwords like "systems thinking," "diagnostic mindset," "paradigm," or "synergy." If a normal person wouldn't say it out loud to a friend, don't write it. Short sentences are fine. Contractions are fine. The goal is a letter that sounds like it was written by a human being, not an AI trying to sound impressive.
+
+CRITICAL — DO NOT SOUND LIKE AI:
+The biggest failure mode is sounding artificial. Read your output back. If any sentence sounds like it came from a language model, rewrite it.
+
+BANNED WORDS AND PHRASES — never use these:
+"honed," "culminating," "fostering," "leveraging," "paramount," "seamlessly," "multifaceted," "spearheaded," "synergy," "endeavor," "utilize," "facilitated," "orchestrated," "navigated" (unless about actual navigation), "landscape," "ecosystem," "stakeholders," "deep dive," "holistic," "robust," "diverse sectors," "dynamic environment," "fast-paced environment," "cutting-edge," "track record of success," "proven ability," "passion for excellence," "aligns seamlessly," "uniquely positioned," "I am confident that," "I believe my skills," "I am eager to," "I am drawn to," "intrigued by the opportunity"
+
+USE THESE INSTEAD:
+- Instead of "honed my ability" → "I got good at" or "I learned how to"
+- Instead of "culminating in" → just state the result directly
+- Instead of "diverse sectors" → name the actual sectors
+- Instead of "navigated high-pressure environments" → "handled tough situations"
+- Instead of "fostering relationships" → "building trust with people"
+- Instead of "leveraging my experience" → "using what I've learned"
+- Instead of "I am confident that" → just state the thing confidently
+
+EXAMPLES OF GOOD vs BAD:
+BAD: "My experience across diverse sectors has honed my ability to foster client relationships and navigate complex operational challenges."
+GOOD: "I've managed a 731-unit storage facility, delivered medical supplies to 15 clinics, and generated 30 leads a week in HVAC sales. Different jobs, same skill — figuring out what people need and making sure they get it."
+
+BAD: "I am intrigued by the unique operational challenges your organization faces and am eager to apply my diagnostic mindset."
+GOOD: "Your job posting mentions handling escalations and resolving disputes — I did that every day for three years at a storage facility with 731 tenants."
+
+BAD: "Culminating in a 5.0 Google rating with 261 reviews, my tenure demonstrated a commitment to excellence."
+GOOD: "When I left, the facility had a 5.0 Google rating and 261 reviews. That didn't happen by accident."
+
+Write like the GOOD examples. If your output looks like the BAD examples, you have failed.
 
 TONE GUIDE:
 - Professional: Polished but still warm. Measured language, clear respect for the reader.
