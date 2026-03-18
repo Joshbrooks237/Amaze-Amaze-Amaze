@@ -459,10 +459,17 @@ SKILLS ARRAY RULES:
 - Mix hard skills (software, tools, certifications) with transferable soft skills (conflict resolution, team leadership).
 - These skills must be real — never claim a skill the candidate doesn't have.
 
+DATES — REQUIRED FOR EVERY ROLE:
+- Every role MUST include a "dates" field with the employment period from the master resume.
+- Use the EXACT dates from the master resume. Do not guess or fabricate dates.
+- Format: "Month Year — Month Year" or "Year — Year" or "Year — Present" — whatever the master resume uses.
+- If the master resume shows approximate dates (like "~2018"), keep the approximation.
+- NEVER omit dates. Recruiters flag dateless resumes.
+
 Return ONLY valid JSON with keys: summary, skills, experience, additionalExperience.
 
 Expected format:
-{"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "bullets": ["...", "...", "..."]}], "additionalExperience": [{"role": "...", "company": "...", "bullets": ["...", "..."]}]}`,
+{"summary": "...", "skills": ["skill1", "skill2", ...], "experience": [{"role": "...", "company": "...", "dates": "2022 — Aug 2025", "bullets": ["...", "...", "..."]}], "additionalExperience": [{"role": "...", "company": "...", "dates": "2018 — 2022", "bullets": ["...", "..."]}]}`,
 
   coverLetter: `You are writing a cover letter for a real person. Not a template. Not a keyword dump. A letter from someone with a life, with bills, with gratitude for what they've built and quiet confidence in what they can do next. Tone: [TONE_SELECTION].
 

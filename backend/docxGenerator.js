@@ -206,23 +206,35 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
     );
 
     for (const role of experience) {
+      const roleChildren = [
+        new TextRun({
+          text: role.role || role.title || 'Role',
+          font: FONT,
+          size: FONT_SIZE_BODY,
+          bold: true,
+          color: COLOR_TEXT
+        }),
+        new TextRun({
+          text: `  |  ${role.company || ''}`,
+          font: FONT,
+          size: FONT_SIZE_BODY,
+          color: COLOR_SUBTEXT
+        })
+      ];
+      if (role.dates) {
+        roleChildren.push(
+          new TextRun({
+            text: `  |  ${role.dates}`,
+            font: FONT,
+            size: FONT_SIZE_BODY,
+            italics: true,
+            color: COLOR_SUBTEXT
+          })
+        );
+      }
       sections.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: role.role || role.title || 'Role',
-              font: FONT,
-              size: FONT_SIZE_BODY,
-              bold: true,
-              color: COLOR_TEXT
-            }),
-            new TextRun({
-              text: `  |  ${role.company || ''}`,
-              font: FONT,
-              size: FONT_SIZE_BODY,
-              color: COLOR_SUBTEXT
-            })
-          ],
+          children: roleChildren,
           spacing: { before: 160, after: 40 }
         })
       );
@@ -262,23 +274,35 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
     );
 
     for (const role of additionalExp) {
+      const addRoleChildren = [
+        new TextRun({
+          text: role.role || role.title || 'Role',
+          font: FONT,
+          size: FONT_SIZE_BODY,
+          bold: true,
+          color: COLOR_TEXT
+        }),
+        new TextRun({
+          text: `  |  ${role.company || ''}`,
+          font: FONT,
+          size: FONT_SIZE_BODY,
+          color: COLOR_SUBTEXT
+        })
+      ];
+      if (role.dates) {
+        addRoleChildren.push(
+          new TextRun({
+            text: `  |  ${role.dates}`,
+            font: FONT,
+            size: FONT_SIZE_BODY,
+            italics: true,
+            color: COLOR_SUBTEXT
+          })
+        );
+      }
       sections.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: role.role || role.title || 'Role',
-              font: FONT,
-              size: FONT_SIZE_BODY,
-              bold: true,
-              color: COLOR_TEXT
-            }),
-            new TextRun({
-              text: `  |  ${role.company || ''}`,
-              font: FONT,
-              size: FONT_SIZE_BODY,
-              color: COLOR_SUBTEXT
-            })
-          ],
+          children: addRoleChildren,
           spacing: { before: 160, after: 40 }
         })
       );
