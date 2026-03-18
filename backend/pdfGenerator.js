@@ -31,6 +31,8 @@ function extractContactInfo(resumeText) {
     }
   }
 
+  contactLine = contactLine.replace(/\s*\|?\s*github\.com\/\S+/gi, '').replace(/\s*\|\s*$/, '').trim();
+
   return { name, contactLine };
 }
 
