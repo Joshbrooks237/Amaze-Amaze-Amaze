@@ -384,6 +384,13 @@ REWRITING RULES:
   No other numbers exist. Never attribute a metric to the wrong company.
 - Joshua is conversational in Spanish but NOT fluent. If Spanish language skills are relevant to the role, list them as "conversational Spanish" or "working knowledge of Spanish." NEVER claim fluency, bilingual status, or "fluent in Spanish."
 
+SKILLS ARRAY RULES:
+- Generate 9-12 skills for the "skills" array. These appear in a "Core Competencies" block on the resume.
+- Pull terms DIRECTLY from the job description wherever the candidate has genuine matching experience.
+- Use the job posting's EXACT phrasing — if they say "client relations" don't write "customer relationship management."
+- Mix hard skills (software, tools, certifications) with transferable soft skills (conflict resolution, team leadership).
+- These skills must be real — never claim a skill the candidate doesn't have.
+
 Return ONLY valid JSON with keys: summary, skills, experience, additionalExperience.
 
 Expected format:
@@ -1578,6 +1585,159 @@ const ANSWER_CATEGORIES = [
   'salary', 'availability', 'why_this_company', 'skills',
   'leadership', 'teamwork', 'weakness', 'other'
 ];
+
+// Highlight-to-Optimize: Smart text analysis
+app.post('/analyze-text', async (req, res) => {
+  const { text, pageUrl, pageTitle } = req.body;
+  console.log('[Server] ── Analyze Text ──');
+  console.log('[Server] Text length:', text?.length, '| URL:', pageUrl);
+
+  if (!text || text.trim().length < 10) {
+    return res.status(400).json({ error: 'Selected text is too short' });
+  }
+
+  const profile = getActiveProfile();
+  if (!profile) {
+    return res.status(400).json({ error: 'No active resume profile. Upload a resume first.' });
+  }
+
+  try {
+    const voiceText = getActiveVoiceText(profile);
+
+    // Step 1: Detect what the text IS
+    const detectionResult = await callOpenAI(
+      `You are a text classifier. Analyze the following text and determine what it is. Return ONLY one of these exact labels, nothing else:
+- JOB_DESCRIPTION (if it describes a job, lists requirements, responsibilities, or qualifications)
+- APPLICATION_QUESTION (if it's a question being asked on a job application — like "Why do you want to work here?" or "Describe a time when...")
+- COMPANY_DESCRIPTION (if it describes a company, their mission, values, culture, or what they do)
+- GENERAL_TEXT (anything else — random text, article, instructions, etc.)`,
+      text.substring(0, 2000),
+      'Text Classification'
+    );
+
+    const textType = detectionResult.trim().toUpperCase().replace(/[^A-Z_]/g, '');
+    console.log(`[Server] Detected text type: ${textType}`);
+
+    let result;
+    let resultType;
+
+    if (textType === 'JOB_DESCRIPTION') {
+      resultType = 'job_optimization';
+      const keywords = await extractKeywords(text);
+      const keywordList = (keywords.keywords || []).map(k => `${k.keyword} (${k.importance}/10)`).join(', ');
+      const scoring = calculateMatchScore(profile.text, keywords, null);
+
+      const analysis = await callOpenAI(
+        `You are a resume advisor. Given a job description and a candidate's resume, provide a brief, honest analysis in plain language. No corporate buzzwords. Write like you're giving advice to a friend.
+
+Cover these points in 3-4 short paragraphs:
+1. How well does this person's experience match this job? Be honest.
+2. What are the strongest connections between their background and this role?
+3. What gaps exist and how could they honestly bridge them?
+4. One specific suggestion for how to position themselves for this role.
+
+TRUTH RULES: Only reference real experience from the resume. Never invent skills or experience.`,
+        `Job Description:\n${text}\n\n---\nCandidate Resume:\n${profile.text}\n\n---\nKeyword Match: ${scoring.originalScore}% of key terms found in current resume.\nTop Keywords: ${keywordList}`,
+        'Job Analysis'
+      );
+
+      result = {
+        type: 'job_optimization',
+        title: 'Job Match Analysis',
+        content: analysis,
+        matchScore: scoring.originalScore,
+        keywords: keywords.keywords?.slice(0, 10) || [],
+        suggestion: `Your current resume matches ${scoring.originalScore}% of this job's keywords. Use the optimizer on the dashboard to generate a tailored resume and cover letter.`
+      };
+
+    } else if (textType === 'APPLICATION_QUESTION') {
+      resultType = 'answer';
+      const systemPrompt = `You are an expert job application assistant. Using only the candidate's actual experience from their resume, generate a specific, honest, compelling answer. Sound human and natural. Use real examples and real metrics from their background. Never fabricate experience. Keep answers concise — 2 to 4 sentences for short answer fields, up to one paragraph for longer fields. Always lead with a specific real example not a generic statement.
+
+CRITICAL RULES:
+- NEVER invent a scenario or story. Use ONLY real examples from the resume.
+- The ONLY real metrics — each belongs to ONE role:
+  • 731 units, 5.0 Google rating, 261 reviews → A-AAAKey Mini Storage ONLY
+  • 98% on-time delivery rate → Green Cuisine ONLY
+  • 30+ leads per week → HVAC Lead Generator ONLY
+  • 12% fuel reduction → Fleet Manager ONLY
+  • 20% consultation increase → HVAC Lead Generator ONLY
+- NEVER mention "Indeeeed Optimizer", "Rio Brave", or any AI tool unless the job is in tech.
+- Joshua is conversational in Spanish — NEVER claim fluency.
+- Do NOT use banned AI words: honed, culminating, fostering, leveraging, paramount, seamlessly, etc.`;
+
+      const contextParts = [`Question: ${text}`];
+      if (pageUrl) contextParts.push(`Page URL: ${pageUrl}`);
+      if (pageTitle) contextParts.push(`Page Title: ${pageTitle}`);
+      contextParts.push(`\n---\nCandidate Resume:\n${profile.text}`);
+      if (voiceText) {
+        contextParts.push(`\n---\nVOICE PROFILE:\n${voiceText}`);
+      }
+
+      const museDirection = await claudeMuse('Conversational', voiceText, `Answering: "${text.substring(0, 100)}"`);
+      let finalPrompt = systemPrompt;
+      if (museDirection) {
+        finalPrompt += `\n\nCREATIVE DIRECTION:\n${museDirection}`;
+      }
+
+      const answer = await callOpenAI(finalPrompt, contextParts.join('\n'), 'Answer Generation');
+      result = { type: 'answer', title: 'Application Answer', content: answer };
+
+    } else if (textType === 'COMPANY_DESCRIPTION') {
+      resultType = 'why_us';
+      const contextParts = [`Company Info:\n${text}`];
+      if (pageUrl) contextParts.push(`Source: ${pageUrl}`);
+      contextParts.push(`\n---\nCandidate Resume:\n${profile.text}`);
+      if (voiceText) contextParts.push(`\n---\nVOICE PROFILE:\n${voiceText}`);
+
+      const whyUs = await callOpenAI(
+        `Write a "Why I want to work here" paragraph using ONLY the candidate's real experience and what's provided about this company. Plain language. No corporate buzzwords. Write like a real person explaining to a friend why this company interests them and what they'd bring.
+
+Sound genuine — connect a specific real experience to something specific about this company. 3-5 sentences max. Do NOT use banned AI words: honed, culminating, fostering, leveraging, paramount, seamlessly, etc.
+
+TRUTH RULES: Only reference real experience from the resume. Never invent skills, stories, or connections.`,
+        contextParts.join('\n'),
+        'Why Us Generation'
+      );
+
+      result = { type: 'why_us', title: 'Why This Company', content: whyUs };
+
+    } else {
+      resultType = 'keywords';
+      const analysis = await callOpenAI(
+        `Analyze this text from a job seeker's perspective. Extract any useful information — keywords, skills mentioned, requirements, company details, or anything that could help tailor a resume or application. Return a brief, practical summary in plain language. 3-4 bullet points max. If there's nothing useful for job seeking, say so honestly.`,
+        `Text:\n${text}\n\nPage: ${pageTitle || 'Unknown'}\nURL: ${pageUrl || 'Unknown'}`,
+        'Text Analysis'
+      );
+
+      result = { type: 'general_analysis', title: 'Text Analysis', content: analysis };
+    }
+
+    // Log to answer library
+    const entry = {
+      id: `ans-${Date.now()}`,
+      profileId: profile.id,
+      question: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+      answer: result.content,
+      category: resultType === 'answer' ? 'other' : resultType,
+      source: 'optimize-highlight',
+      pageUrl: pageUrl || '',
+      pageTitle: pageTitle || '',
+      createdAt: new Date().toISOString(),
+      versions: [{ answer: result.content, generatedAt: new Date().toISOString() }],
+      selectedVersion: 0
+    };
+    answerLibrary.unshift(entry);
+    saveAnswerLibrary();
+
+    console.log(`[Server] Analyze complete: ${result.type} | logged as ${entry.id}`);
+    res.json({ ...result, id: entry.id });
+
+  } catch (err) {
+    console.error('[Server] Analyze failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.post('/answer-question', async (req, res) => {
   const { question, pageContext } = req.body;

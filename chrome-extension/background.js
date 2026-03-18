@@ -8,6 +8,11 @@ chrome.runtime.onInstalled.addListener(() => {
     contexts: ['selection']
   });
   chrome.contextMenus.create({
+    id: 'optimize-with-rio-brave',
+    title: 'Optimize with Rio Brave ✨',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
     id: 'fill-all-rio-brave',
     title: 'Fill All Fields with Rio Brave ✨',
     contexts: ['page']
@@ -39,6 +44,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     chrome.tabs.sendMessage(tab.id, {
       type: 'GENERATE_ANSWER',
       question: info.selectionText
+    });
+  }
+  if (info.menuItemId === 'optimize-with-rio-brave' && info.selectionText) {
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'OPTIMIZE_TEXT',
+      text: info.selectionText
     });
   }
   if (info.menuItemId === 'fill-all-rio-brave') {

@@ -14,6 +14,9 @@
     if (msg.type === 'GENERATE_ANSWER') {
       handleAnswerRequest(msg.question);
     }
+    if (msg.type === 'OPTIMIZE_TEXT') {
+      handleOptimizeText(msg.text);
+    }
     if (msg.type === 'FILL_ALL_FIELDS') {
       handleFillAll();
     }
@@ -401,6 +404,128 @@
       console.error('[Rio Brave] Failed:', err.message);
       removePreview();
       showToast('Failed: ' + err.message, 'error');
+    }
+  }
+
+  // ── Optimize Text ──
+
+  function showOptimizeLoading(text) {
+    removePreview();
+    const bubble = document.createElement('div');
+    bubble.id = 'rio-brave-preview';
+    bubble.innerHTML = `
+      <div class="rio-header">
+        <span class="rio-logo">✨</span>
+        <span class="rio-title">Rio Brave — Analyzing</span>
+        <button class="rio-close" title="Close">✕</button>
+      </div>
+      <div class="rio-question">${escapeHtml(text.length > 120 ? text.substring(0, 120) + '...' : text)}</div>
+      <div class="rio-answer-container">
+        <div class="rio-loading"><div class="rio-spinner"></div> Analyzing text and building response...</div>
+      </div>
+    `;
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      bubble.style.top = (window.scrollY + rect.bottom + 12) + 'px';
+      bubble.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 420)) + 'px';
+    }
+
+    bubble.querySelector('.rio-close').addEventListener('click', removePreview);
+    document.body.appendChild(bubble);
+    previewBubble = bubble;
+  }
+
+  function showOptimizeResult(result, originalText) {
+    removePreview();
+
+    const bubble = document.createElement('div');
+    bubble.id = 'rio-brave-preview';
+    bubble.className = 'rio-optimize-result';
+
+    let extraInfo = '';
+    if (result.matchScore !== undefined) {
+      extraInfo = `<div class="rio-match-score">Resume Match: <strong>${result.matchScore}%</strong></div>`;
+    }
+    if (result.keywords && result.keywords.length > 0) {
+      const kwTags = result.keywords.map(k =>
+        `<span class="rio-kw-tag">${escapeHtml(k.keyword)}</span>`
+      ).join('');
+      extraInfo += `<div class="rio-kw-list">${kwTags}</div>`;
+    }
+    if (result.suggestion) {
+      extraInfo += `<div class="rio-suggestion">${escapeHtml(result.suggestion)}</div>`;
+    }
+
+    bubble.innerHTML = `
+      <div class="rio-header">
+        <span class="rio-logo">✨</span>
+        <span class="rio-title">${escapeHtml(result.title || 'Analysis')}</span>
+        <span class="rio-type-badge">${escapeHtml(result.type || 'analysis')}</span>
+        <button class="rio-close" title="Close">✕</button>
+      </div>
+      ${extraInfo}
+      <div class="rio-answer-container">
+        <div class="rio-answer">${escapeHtml(result.content)}</div>
+      </div>
+      <div class="rio-actions">
+        <button class="rio-btn rio-btn-copy">Copy ✓</button>
+        <button class="rio-btn rio-btn-retry">Try Again ↻</button>
+        <button class="rio-btn rio-btn-close">Close</button>
+      </div>
+    `;
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      bubble.style.top = (window.scrollY + rect.bottom + 12) + 'px';
+      bubble.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 420)) + 'px';
+    }
+
+    document.body.appendChild(bubble);
+    previewBubble = bubble;
+
+    bubble.querySelector('.rio-close').addEventListener('click', removePreview);
+    bubble.querySelector('.rio-btn-close').addEventListener('click', removePreview);
+
+    bubble.querySelector('.rio-btn-copy').addEventListener('click', () => {
+      copyToClipboard(result.content);
+      showToast('Copied to clipboard!');
+    });
+
+    bubble.querySelector('.rio-btn-retry').addEventListener('click', () => {
+      handleOptimizeText(originalText);
+    });
+  }
+
+  async function handleOptimizeText(text) {
+    console.log('[Rio Brave] Optimizing text:', text.substring(0, 80));
+    showOptimizeLoading(text);
+
+    try {
+      const resp = await fetch(`${API_URL}/analyze-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          pageUrl: window.location.href,
+          pageTitle: document.title
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Server error: ${resp.status}`);
+      }
+
+      const result = await resp.json();
+      console.log('[Rio Brave] Analysis complete:', result.type);
+      showOptimizeResult(result, text);
+    } catch (err) {
+      console.error('[Rio Brave] Optimize failed:', err.message);
+      removePreview();
+      showToast('Analysis failed: ' + err.message, 'error');
     }
   }
 

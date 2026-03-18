@@ -156,13 +156,13 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
     })
   );
 
-  // ── Skills Section ──
+  // ── Core Competencies Block ──
   const skillsList = rewrittenResume.skills || [];
   if (skillsList.length > 0) {
     sections.push(
       new Paragraph({
         children: [new TextRun({
-          text: 'SKILLS',
+          text: 'CORE COMPETENCIES',
           font: FONT,
           size: FONT_SIZE_HEADING,
           bold: true,
@@ -175,12 +175,13 @@ async function generateResumeDOCX(rewrittenResume, keywords, jobTitle, companyNa
     );
 
     const skillChunks = [];
-    for (let i = 0; i < skillsList.length; i += 4) {
-      skillChunks.push(skillsList.slice(i, i + 4).join('  •  '));
+    for (let i = 0; i < skillsList.length; i += 3) {
+      skillChunks.push(skillsList.slice(i, i + 3).join('  |  '));
     }
     for (const chunk of skillChunks) {
       sections.push(new Paragraph({
         children: createHighlightedRuns(chunk, keywords),
+        alignment: AlignmentType.CENTER,
         spacing: { after: 40 }
       }));
     }
