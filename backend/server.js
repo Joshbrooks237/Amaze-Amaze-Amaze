@@ -75,12 +75,15 @@ CRITICAL RULES:
 - The goal is a letter that sounds like a real human being wrote it. Someone with a life, bills, and real experience.
 
 Produce 5-8 bullet points covering:
-- Emotional register: Keep it grounded. Warm but not syrupy. Confident but not cocky.
+- LENGTH: The final letter should be short (~160–240 words). Tell the writer to cut ruthlessly — no fourth paragraph, no resume recap.
+- PUNCH: Where to land one memorable short line; mix very short sentences with normal ones for rhythm.
+- ENDEARING: One beat of genuine likability — warmth, humor, or care — without sounding needy or corporate.
+- Emotional register: Grounded. Warm but not syrupy. Confident but not cocky.
 - Which ONE real experience to lead with and a simple reason why it connects to this job.
 - What kind of plain, honest opening to use — no dramatic hooks, just a real sentence.
 - Sentence style: Plain language. Short sentences. No thesaurus words.
-- What to AVOID: dramatic metaphors, corporate buzzwords, try-hard creativity, forced cleverness.
-- The vibe: This letter should read like it was written by a real person at their kitchen table — someone who knows what they bring and isn't trying to impress, just communicate.`,
+- What to AVOID: long paragraphs, dramatic metaphors, corporate buzzwords, try-hard creativity, forced cleverness.
+- The vibe: Someone you'd want on the team — real, brief, human.`,
       messages: [{
         role: 'user',
         content: `Tone selected: ${tone}
@@ -520,20 +523,25 @@ TONE GUIDE:
 - Direct: No filler. Short sentences. Respects the reader's time completely.
 - Enthusiastic: Genuinely excited. Shows they actually looked into the company.
 
+LENGTH & PACE (NON-NEGOTIABLE):
+- Keep the whole letter body tight: about 160–240 words total (not counting salutation). Shorter beats longer. If it reads like a wall of text, cut it.
+- 2 or 3 short paragraphs only. No fourth paragraph. No recap of the entire resume.
+- Punchy: mix in a few very short sentences (even 3–6 words) for rhythm. One line that sticks is worth more than three polite ones.
+- Endearing: let a little warmth show — likable, human, the kind of person you'd want in the break room — without sounding cheesy or needy. One small genuine beat (gratitude, humor, or care for the work) is enough.
+
 CONTENT:
-- Include at least one real achievement with a real number from the resume.
-- Include at least one specific experience that connects to this job.
-- If relevant keywords from the job description fit naturally, include a few — but NEVER force them. This is a letter from a person, not a keyword checklist.
-- Show why the candidate's real experience transfers to this specific role.
+- One strong achievement with a real number from the resume (not a list of everything they ever did).
+- One clear line tying their experience to this role.
+- If relevant keywords from the job fit in one breath, use them — never stuff.
 
-HUMAN-TOUCH: Include one moment that could only come from a real person — a detail about the company's community, a reflection on what the work means, a connection between their past and this role's future. 1-2 sentences, placed wherever it feels natural.
+HUMAN-TOUCH: One short beat (1 sentence, max 2) — a real detail about the company/role or why this work matters to them. Warm, not corporate.
 
-STRUCTURE: 3 paragraphs, under one page.
-- First: Hook that connects their story to this role.
-- Middle: Real experience, real numbers, why they're the right fit.
-- Last: A reflective thought and a closing sentence that sounds like a promise, not a plea.
+STRUCTURE:
+- Paragraph 1: Hook + why this role fits them (tight).
+- Paragraph 2: Proof — the number, the parallel experience, done fast.
+- Paragraph 3 (optional if already tight): One human line + closing sentence only — no new essay.
 
-CLOSING: 18-25 words. Confident and natural. Connect their strengths to the work. NEVER use "I am excited to apply", "I look forward to", or "Thank you for your consideration." Write a closer that a real person would actually say.
+CLOSING: 12–22 words. Sharp, warm, confident. Connect what they bring to what the team needs. NEVER use "I am excited to apply", "I look forward to", or "Thank you for your consideration." End like a person signing off, not a form letter.
 
 ABSOLUTE TRUTH RULES — EVERY WORD MUST BE DEFENSIBLE IN AN INTERVIEW:
 - NEVER invent a scenario, story, or hypothetical example. Do NOT write "for instance" or "for example" followed by a made-up situation. If you need an example, use ONLY real ones from the resume.
@@ -564,7 +572,8 @@ Return only the cover letter text, ready to send with no placeholders.`
 };
 
 // ── OpenAI Calls ──
-async function callOpenAI(systemPrompt, userContent, label) {
+async function callOpenAI(systemPrompt, userContent, label, options = {}) {
+  const maxTokens = options.maxTokens ?? 4000;
   console.log(`[AI] Starting ${label}...`);
   const startTime = Date.now();
 
@@ -576,7 +585,7 @@ async function callOpenAI(systemPrompt, userContent, label) {
         { role: 'user', content: userContent }
       ],
       temperature: 0.7,
-      max_tokens: 4000
+      max_tokens: maxTokens
     });
 
     const content = response.choices[0].message.content;
@@ -810,7 +819,7 @@ async function generateCoverLetter(jobDescription, resumeSummary, keywords, tone
 
   const userContent = contentParts.join('\n');
 
-  const raw = await callOpenAI(prompt, userContent, 'Cover Letter Generation');
+  const raw = await callOpenAI(prompt, userContent, 'Cover Letter Generation', { maxTokens: 900 });
 
   let cleaned = raw.replace(/```\n?/g, '').trim();
   cleaned = replacePlaceholders(cleaned, candidateName, companyName, jobTitle);
@@ -1686,9 +1695,9 @@ const ANSWER_CATEGORIES = [
 
 // Highlight-to-Optimize: Smart text analysis
 app.post('/analyze-text', async (req, res) => {
-  const { text, pageUrl, pageTitle } = req.body;
+  const { text, pageUrl, pageTitle, forceResume } = req.body;
   console.log('[Server] ── Analyze Text ──');
-  console.log('[Server] Text length:', text?.length, '| URL:', pageUrl);
+  console.log('[Server] Text length:', text?.length, '| URL:', pageUrl, '| forceResume:', !!forceResume);
 
   if (!text || text.trim().length < 10) {
     return res.status(400).json({ error: 'Selected text is too short' });
@@ -1703,6 +1712,9 @@ app.post('/analyze-text', async (req, res) => {
     const analyzeJobContext = `${pageTitle || ''} ${pageUrl || ''}: ${text.substring(0, 300)}`;
     const voiceText = await autoSelectVoiceText(profile, analyzeJobContext);
 
+    let textType = forceResume ? 'JOB_DESCRIPTION' : null;
+
+    if (!textType) {
     // Step 1: Detect what the text IS
     const detectionResult = await callOpenAI(
       `You are a text classifier. Analyze the following text and determine what it is. Return ONLY one of these exact labels, nothing else:
@@ -1714,39 +1726,131 @@ app.post('/analyze-text', async (req, res) => {
       'Text Classification'
     );
 
-    const textType = detectionResult.trim().toUpperCase().replace(/[^A-Z_]/g, '');
-    console.log(`[Server] Detected text type: ${textType}`);
+    textType = detectionResult.trim().toUpperCase().replace(/[^A-Z_]/g, '');
+    }
+    console.log(`[Server] Text type: ${textType}${forceResume ? ' (forced resume)' : ''}`);
 
     let result;
     let resultType;
 
     if (textType === 'JOB_DESCRIPTION') {
-      resultType = 'job_optimization';
-      const keywords = await extractKeywords(text);
-      const keywordList = (keywords.keywords || []).map(k => `${k.keyword} (${k.importance}/10)`).join(', ');
-      const scoring = calculateMatchScore(profile.text, keywords, null);
+      resultType = 'full_resume';
+      const masterResume = profile;
 
-      const analysis = await callOpenAI(
-        `You are a resume advisor. Given a job description and a candidate's resume, provide a brief, honest analysis in plain language. No corporate buzzwords. Write like you're giving advice to a friend.
-
-Cover these points in 3-4 short paragraphs:
-1. How well does this person's experience match this job? Be honest.
-2. What are the strongest connections between their background and this role?
-3. What gaps exist and how could they honestly bridge them?
-4. One specific suggestion for how to position themselves for this role.
-
-TRUTH RULES: Only reference real experience from the resume. Never invent skills or experience.`,
-        `Job Description:\n${text}\n\n---\nCandidate Resume:\n${profile.text}\n\n---\nKeyword Match: ${scoring.originalScore}% of key terms found in current resume.\nTop Keywords: ${keywordList}`,
-        'Job Analysis'
+      const extracted = await callOpenAI(
+        `Extract the job title and company name from this job description or page context. Return ONLY valid JSON: {"jobTitle": "...", "companyName": "..."}. Use the page title or URL if the text doesn't say. If unknown, use "Position" or "Company" as fallback.`,
+        `Text:\n${text.substring(0, 800)}\n\nPage title: ${pageTitle || 'N/A'}\nURL: ${pageUrl || 'N/A'}`,
+        'Extract Job Context'
       );
+      let jobTitle = 'Position';
+      let companyName = 'Company';
+      try {
+        const parsed = JSON.parse(extracted.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+        jobTitle = parsed.jobTitle || jobTitle;
+        companyName = parsed.companyName || companyName;
+      } catch (_) {}
+
+      const jobContext = `${jobTitle} at ${companyName}: ${text.substring(0, 300)}`;
+      const voiceText = await autoSelectVoiceText(masterResume, jobContext);
+      const keywords = await extractKeywords(text);
+      let bestResult = null;
+      let bestScore = -1;
+      const MATCH_THRESHOLD = 75;
+      const MAX_RETRIES = 2;
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        let rewrittenResume;
+        try {
+          rewrittenResume = await rewriteResumeWithStrategy(
+            masterResume.text, keywords, null, voiceText
+          );
+        } catch (e) {
+          if (attempt < MAX_RETRIES) continue;
+          throw e;
+        }
+        const scoring = calculateMatchScore(masterResume.text, keywords, rewrittenResume);
+        if (scoring.matchScore > bestScore) {
+          bestScore = scoring.matchScore;
+          const coverLetterText = await generateCoverLetter(
+            text, rewrittenResume.summary, keywords, 'Professional',
+            {
+              candidateName: extractCandidateName(masterResume.text),
+              companyName,
+              jobTitle,
+              resumeText: masterResume.text,
+              voiceText
+            }
+          );
+          bestResult = { rewrittenResume, coverLetterText, scoring };
+        }
+        if (scoring.matchScore >= MATCH_THRESHOLD) break;
+      }
+
+      if (!bestResult) {
+        throw new Error('Resume optimization failed. Please try again.');
+      }
+
+      const { rewrittenResume, coverLetterText, scoring } = bestResult;
+      const optimizationId = `opt-${Date.now()}`;
+      const version = optimizationHistory.filter(
+        h => h.companyName === companyName && h.jobTitle === jobTitle
+      ).length + 1;
+      const safeCompany = sanitizeForFilename(companyName);
+      const safeTitle = sanitizeForFilename(jobTitle);
+      const resumeFileName = `resume-v${version}-${safeCompany}-${safeTitle}.docx`;
+      const resumePdfFileName = `resume-v${version}-${safeCompany}-${safeTitle}.pdf`;
+      const coverLetterFileName = `coverletter-v${version}-${safeCompany}-${safeTitle}.docx`;
+      const resumeFilePath = path.join(__dirname, 'output', resumeFileName);
+      const resumePdfFilePath = path.join(__dirname, 'output', resumePdfFileName);
+      const coverLetterFilePath = path.join(__dirname, 'output', coverLetterFileName);
+      const keywordStrings = (keywords.keywords || []).map(k => k.keyword);
+
+      await generateResumeDOCX(rewrittenResume, keywordStrings, jobTitle, companyName, resumeFilePath, masterResume.text);
+      await generateResumePDF(rewrittenResume, keywordStrings, resumePdfFilePath, masterResume.text);
+      await generateCoverLetterDOCX(coverLetterText, keywordStrings, jobTitle, companyName, coverLetterFilePath, extractCandidateName(masterResume.text));
+
+      const historyEntry = {
+        id: optimizationId,
+        profileId: masterResume.id,
+        profileName: masterResume.name,
+        profileEmoji: masterResume.emoji,
+        jobTitle,
+        companyName,
+        fullDescription: text,
+        sourceUrl: pageUrl || '',
+        tone: 'Professional',
+        keywords: keywords.keywords || [],
+        rewrittenResume,
+        originalResumeText: masterResume.text,
+        coverLetterText,
+        matchScore: scoring.matchScore,
+        originalScore: scoring.originalScore,
+        keywordDetails: scoring.details,
+        retryAttempts: 1,
+        belowThreshold: scoring.matchScore < MATCH_THRESHOLD,
+        resumePath: `/output/${resumeFileName}`,
+        resumePdfPath: `/output/${resumePdfFileName}`,
+        coverLetterPath: `/output/${coverLetterFileName}`,
+        resumeFileName,
+        resumePdfFileName,
+        coverLetterFileName,
+        optimizedAt: new Date().toISOString()
+      };
+      optimizationHistory.unshift(historyEntry);
+      saveHistory();
+
+      console.log(`[Server] Full resume created from highlight: ${jobTitle} at ${companyName} | Score: ${scoring.matchScore}%`);
 
       result = {
-        type: 'job_optimization',
-        title: 'Job Match Analysis',
-        content: analysis,
-        matchScore: scoring.originalScore,
+        type: 'full_resume',
+        title: 'Resume Created',
+        content: `Tailored resume and cover letter for ${jobTitle} at ${companyName}. Match score: ${scoring.matchScore}%.`,
+        matchScore: scoring.matchScore,
         keywords: keywords.keywords?.slice(0, 10) || [],
-        suggestion: `Your current resume matches ${scoring.originalScore}% of this job's keywords. Use the optimizer on the dashboard to generate a tailored resume and cover letter.`
+        optimizationId,
+        jobTitle,
+        companyName,
+        suggestion: 'View and download on your dashboard.'
       };
 
     } else if (textType === 'APPLICATION_QUESTION') {
@@ -1812,25 +1916,28 @@ TRUTH RULES: Only reference real experience from the resume. Never invent skills
       result = { type: 'general_analysis', title: 'Text Analysis', content: analysis };
     }
 
-    // Log to answer library
-    const entry = {
-      id: `ans-${Date.now()}`,
-      profileId: profile.id,
-      question: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
-      answer: result.content,
-      category: resultType === 'answer' ? 'other' : resultType,
-      source: 'optimize-highlight',
-      pageUrl: pageUrl || '',
-      pageTitle: pageTitle || '',
-      createdAt: new Date().toISOString(),
-      versions: [{ answer: result.content, generatedAt: new Date().toISOString() }],
-      selectedVersion: 0
-    };
-    answerLibrary.unshift(entry);
-    saveAnswerLibrary();
+    // Log to answer library (skip for full_resume — already in optimization history)
+    let responseId = result.optimizationId || `ans-${Date.now()}`;
+    if (resultType !== 'full_resume') {
+      const entry = {
+        id: responseId,
+        profileId: profile.id,
+        question: text.substring(0, 200) + (text.length > 200 ? '...' : ''),
+        answer: result.content,
+        category: resultType === 'answer' ? 'other' : resultType,
+        source: 'optimize-highlight',
+        pageUrl: pageUrl || '',
+        pageTitle: pageTitle || '',
+        createdAt: new Date().toISOString(),
+        versions: [{ answer: result.content, generatedAt: new Date().toISOString() }],
+        selectedVersion: 0
+      };
+      answerLibrary.unshift(entry);
+      saveAnswerLibrary();
+    }
 
-    console.log(`[Server] Analyze complete: ${result.type} | logged as ${entry.id}`);
-    res.json({ ...result, id: entry.id });
+    console.log(`[Server] Analyze complete: ${result.type}${resultType === 'full_resume' ? ' | saved to dashboard' : ''}`);
+    res.json({ ...result, id: responseId });
 
   } catch (err) {
     console.error('[Server] Analyze failed:', err.message);
@@ -2254,7 +2361,12 @@ Return ONLY the rewriting instructions, nothing else.`,
     userParts.push(`\n---\nCandidate Resume:\n${profile.text}`);
     if (voiceText) userParts.push(`\n---\nVoice Profile:\n${voiceText}`);
 
-    const refined = await callOpenAI(systemPrompt, userParts.join('\n'), 'Feedback Refinement');
+    const refined = await callOpenAI(
+      systemPrompt,
+      userParts.join('\n'),
+      'Feedback Refinement',
+      type === 'cover_letter' ? { maxTokens: 900 } : {}
+    );
 
     let cleanedOutput = refined.replace(/```\n?/g, '').trim();
     if (type === 'cover_letter') {

@@ -13,6 +13,11 @@ chrome.runtime.onInstalled.addListener(() => {
     contexts: ['selection']
   });
   chrome.contextMenus.create({
+    id: 'make-resume-rio-brave',
+    title: 'Rio Brave — Make Resume & Cover Letter',
+    contexts: ['selection']
+  });
+  chrome.contextMenus.create({
     id: 'fill-all-rio-brave',
     title: 'Fill All Fields with Rio Brave ✨',
     contexts: ['page']
@@ -49,6 +54,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'optimize-with-rio-brave' && info.selectionText) {
     chrome.tabs.sendMessage(tab.id, {
       type: 'OPTIMIZE_TEXT',
+      text: info.selectionText
+    });
+  }
+  if (info.menuItemId === 'make-resume-rio-brave' && info.selectionText) {
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'MAKE_RESUME',
       text: info.selectionText
     });
   }

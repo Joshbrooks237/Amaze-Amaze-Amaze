@@ -17,6 +17,9 @@
     if (msg.type === 'OPTIMIZE_TEXT') {
       handleOptimizeText(msg.text);
     }
+    if (msg.type === 'MAKE_RESUME') {
+      handleMakeResume(msg.text);
+    }
     if (msg.type === 'FILL_ALL_FIELDS') {
       handleFillAll();
     }
@@ -409,27 +412,40 @@
 
   // ── Optimize Text ──
 
-  function showOptimizeLoading(text) {
+  function showOptimizeLoading(text, message) {
     removePreview();
     const bubble = document.createElement('div');
     bubble.id = 'rio-brave-preview';
     bubble.innerHTML = `
       <div class="rio-header">
         <span class="rio-logo">✨</span>
-        <span class="rio-title">Rio Brave — Analyzing</span>
+        <span class="rio-title">Rio Brave — ${message ? 'Creating' : 'Analyzing'}</span>
         <button class="rio-close" title="Close">✕</button>
       </div>
       <div class="rio-question">${escapeHtml(text.length > 120 ? text.substring(0, 120) + '...' : text)}</div>
       <div class="rio-answer-container">
-        <div class="rio-loading"><div class="rio-spinner"></div> Analyzing text and building response...</div>
+        <div class="rio-loading"><div class="rio-spinner"></div> ${message || 'Analyzing text and building response...'}</div>
       </div>
     `;
 
+    let positioned = false;
     const sel = window.getSelection();
     if (sel && sel.rangeCount) {
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      bubble.style.top = (window.scrollY + rect.bottom + 12) + 'px';
-      bubble.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 420)) + 'px';
+      try {
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        if (rect.width > 0 || rect.height > 0) {
+          bubble.style.position = 'absolute';
+          bubble.style.top = (window.scrollY + rect.bottom + 12) + 'px';
+          bubble.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 420)) + 'px';
+          positioned = true;
+        }
+      } catch (_) {}
+    }
+    if (!positioned) {
+      bubble.style.position = 'fixed';
+      bubble.style.top = '20px';
+      bubble.style.right = '20px';
+      bubble.style.left = 'auto';
     }
 
     bubble.querySelector('.rio-close').addEventListener('click', removePreview);
@@ -458,6 +474,11 @@
       extraInfo += `<div class="rio-suggestion">${escapeHtml(result.suggestion)}</div>`;
     }
 
+    const isFullResume = result.type === 'full_resume';
+    const dashboardUrl = (typeof INDEEEED_CONFIG !== 'undefined' && INDEEEED_CONFIG.DASHBOARD_URL)
+      ? INDEEEED_CONFIG.DASHBOARD_URL
+      : 'http://localhost:3000';
+
     bubble.innerHTML = `
       <div class="rio-header">
         <span class="rio-logo">✨</span>
@@ -470,17 +491,31 @@
         <div class="rio-answer">${escapeHtml(result.content)}</div>
       </div>
       <div class="rio-actions">
+        ${isFullResume ? `<a href="${dashboardUrl}" target="_blank" rel="noopener" class="rio-btn rio-btn-dashboard">View on Dashboard</a>` : ''}
         <button class="rio-btn rio-btn-copy">Copy ✓</button>
         <button class="rio-btn rio-btn-retry">Try Again ↻</button>
         <button class="rio-btn rio-btn-close">Close</button>
       </div>
     `;
 
+    let positioned = false;
     const sel = window.getSelection();
     if (sel && sel.rangeCount) {
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      bubble.style.top = (window.scrollY + rect.bottom + 12) + 'px';
-      bubble.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 420)) + 'px';
+      try {
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        if (rect.width > 0 || rect.height > 0) {
+          bubble.style.position = 'absolute';
+          bubble.style.top = (window.scrollY + rect.bottom + 12) + 'px';
+          bubble.style.left = Math.max(16, Math.min(rect.left, window.innerWidth - 420)) + 'px';
+          positioned = true;
+        }
+      } catch (_) {}
+    }
+    if (!positioned) {
+      bubble.style.position = 'fixed';
+      bubble.style.top = '20px';
+      bubble.style.right = '20px';
+      bubble.style.left = 'auto';
     }
 
     document.body.appendChild(bubble);
@@ -497,6 +532,36 @@
     bubble.querySelector('.rio-btn-retry').addEventListener('click', () => {
       handleOptimizeText(originalText);
     });
+  }
+
+  async function handleMakeResume(text) {
+    console.log('[Rio Brave] Make resume from:', text.substring(0, 80));
+    showOptimizeLoading(text, 'Creating resume & cover letter...');
+
+    try {
+      const resp = await fetch(`${API_URL}/analyze-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          pageUrl: window.location.href,
+          pageTitle: document.title,
+          forceResume: true
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Server error: ${resp.status}`);
+      }
+
+      const result = await resp.json();
+      showOptimizeResult(result, text);
+    } catch (err) {
+      console.error('[Rio Brave] Make resume failed:', err.message);
+      removePreview();
+      showToast('Failed: ' + err.message, 'error');
+    }
   }
 
   async function handleOptimizeText(text) {

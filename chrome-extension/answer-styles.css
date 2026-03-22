@@ -309,3 +309,17 @@
 .rio-btn-copy:hover {
   background: #10b981 !important;
 }
+
+.rio-btn-dashboard {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  color: white !important;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rio-btn-dashboard:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  color: white !important;
+}
