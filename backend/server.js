@@ -462,16 +462,18 @@ The goal is BOTH: 70%+ keyword match AND excellent human prose.
 
 CRITICAL RULES — EVERY ROLE MUST BE INCLUDED:
 - The master resume contains MANY different job roles. You MUST include ALL of them in your output. NEVER drop a role.
+- Count the roles in the master resume before outputting. If your output has fewer roles, you have failed.
+- Every role goes into either "experience" or "additionalExperience" — no role is left out, no matter how old or unrelated.
+- Order by relevance, but INCLUDE EVERYTHING.
 
-ORDERING (read top to bottom — this overrides generic “most relevant first” if they conflict):
-- **Management / supervisory / lead roles first:** Any role where the candidate managed people, ran a site or operation as the lead, or owned team outcomes should appear **before** individual-contributor roles, **when both are in the same section**. Among manager/lead roles, order by **relevance to the target job** (strongest match first).
-- **Then most relevant non-manager roles:** After leads/managers, order remaining roles by **relevance to the target job** (most relevant next, then downward).
-- Tie-breakers when relevance is similar (still respect manager-first above): Storage/facility management roles usually sit lower unless the target job is specifically about facilities, property, or storage management. For **customer service** targets, favor roles with direct customer/client interaction. For **logistics/operations** targets, favor Fleet Manager, delivery/ops, production runner, storage leadership when relevant. For **administrative/office** targets, favor admin, CS, and coordination-heavy roles.
+ORDERING — MOST RELEVANT FIRST, ALWAYS:
+- Order ALL roles strictly by relevance to the target job. The most relevant role goes first, regardless of seniority or recency.
+- If two roles are equally relevant, put the more recent one first.
+- Do NOT force management roles to the top if they are not the most relevant. A customer service role beats a storage management role when the target job is customer service.
 
 Split into TWO groups:
-- "experience" — The **primary** roles for this application (typically **3–5 roles**, but use more slots if needed so **no** strong management role is buried just to hit a number). **Prioritize management/supervisory/lead roles here** when they belong in the spotlight; fill remaining slots with the next-most-relevant roles. Give **about 3 substantive bullets per role** (add a **4th** when a metric or scope detail must stay).
-- "additionalExperience" — **ALL REMAINING** roles, same ordering rules (managers/leads before ICs where applicable, then by relevance). Typically **2 bullets per role**; add a **3rd** when needed so facts are not lost. Weave keywords where natural.
-
+- "experience" — The top 4-5 most relevant roles. Give 3 substantive bullets per role (add a 4th when a real metric must stay).
+- "additionalExperience" — ALL remaining roles in descending relevance order. 2 bullets per role; 3 if a key fact would otherwise be lost. Weave keywords where natural.
 LENGTH — NO ARTIFICIAL CAP:
 - Use **as much space as the content needs**. Do **not** shorten, compress, or strip substance to hit a word count. If you must choose between filler and a **real metric**, keep the metric.
 
@@ -505,11 +507,13 @@ DATES — REQUIRED FOR EVERY ROLE:
 
 EDUCATION — REQUIRED WHEN PRESENT IN MASTER RESUME:
 - If the master resume contains an education section, you MUST include it in your output in a new "education" array.
-- NEVER omit education. If the candidate has a Bachelor's degree or higher, it is a key qualifier and must appear on every resume.
-- For candidates with international education (study abroad, exchange programs, dual degrees), ALWAYS include both institutions. Example: Bachelor's degree from San Diego State University AND exchange program at KEDGE Business School, France — both are differentiators.
-- Placement: For professional roles with 5+ years experience, place education after additionalExperience. For entry-level roles or roles where the degree is a primary qualifier (teaching, research, international business), place education near the top in the JSON (it will render prominently).
-- Format each entry as: {"degree": "Bachelor of Arts in Communication", "institution": "San Diego State University", "location": "San Diego, CA", "dates": "Aug 2011 — Aug 2014"}
-- For exchange programs or study abroad, create a separate entry: {"degree": "Exchange Program — Business Studies", "institution": "KEDGE Business School", "location": "Marseille, France", "dates": "Sep 2013 — May 2014"}
+- NEVER omit education. Include it on every resume, regardless of role.
+- NEVER invent or fabricate education. ONLY use what is explicitly listed under "EDUCATION" in the master resume.
+- ES Audio is a WORK EXPERIENCE entry — NOT a school. Never list it as education.
+- The correct education for Joshua Brooks is: Associate of Science in Audio Production — Los Angeles Film School, Los Angeles, CA, 2006–2007.
+- For candidates with international education (study abroad, exchange programs, dual degrees), ALWAYS include both institutions.
+- Placement: For professional roles with 5+ years experience, place education after additionalExperience. For entry-level roles or roles where the degree is a primary qualifier, place education near the top.
+- Format each entry as: {"degree": "Associate of Science in Audio Production", "institution": "Los Angeles Film School", "location": "Los Angeles, CA", "dates": "2006 — 2007"}
 
 Return ONLY valid JSON with keys: summary, skills, experience, additionalExperience, education (if present in master resume).
 
