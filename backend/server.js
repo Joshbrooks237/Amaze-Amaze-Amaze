@@ -423,15 +423,21 @@ const PROMPTS = {
 
 ONLY extract keywords that represent genuine professional skills, experience areas, tools, or qualifications a candidate would list on a resume.
 
-DO NOT extract any of the following — these are job requirements, not candidate skills:
+DO NOT extract any of the following — these are NOT candidate skills:
 - Physical requirements ("lift 50 lbs", "stand for long periods", "steel-toed boots")
-- Drug/background policy language ("drug-free", "background check", "drug test")
-- Workplace policy language ("uniform", "punctual", "reliable transportation", "valid driver's license" unless driving IS the job)
+- Drug/background policy ("drug-free", "background check", "drug test")
+- Workplace policy ("uniform", "punctual", "reliable transportation")
 - Legal boilerplate ("equal opportunity employer", "at-will employment")
-- Compensation/schedule details ("$18/hr", "weekends required", "full-time")
+- Compensation/benefits ("commission", "bonus", "route bonus", "$18/hr", "benefits package")
+- Vehicle/equipment types that aren't skills ("box truck", "step-van", "hand truck", "dolly") — unless the SKILL is operating them
+- Company industry/product terms that aren't candidate skills ("textile rental", "uniform rental", "linen supply")
+- Driving record/license requirements ("driving record", "clean MVR", "valid driver's license")
+- Schedule details ("weekends required", "full-time", "overtime")
 
-GOOD examples: "customer service", "route optimization", "inventory management", "forklift certified", "team leadership", "POS systems", "conflict resolution"
-BAD examples: "able to lift 50 lbs", "drug-free workplace", "must have reliable transportation", "weekends and holidays"
+A keyword should be something the candidate DOES or KNOWS — an action, a skill, a competency. NOT something the company offers, requires, or provides.
+
+GOOD examples: "customer service", "route optimization", "inventory management", "sales", "team leadership", "CRM", "conflict resolution", "upsell", "cross-sell", "account management"
+BAD examples: "box truck", "step-van", "uniform rental", "route bonus", "commission", "driving record", "drug-free", "textile rental"
 
 Categorize each as: technical_skill, soft_skill, qualification, or industry_term. Assign an importance score 1-10. Mark each with a "type" field: "keyword" or "phrase".
 
