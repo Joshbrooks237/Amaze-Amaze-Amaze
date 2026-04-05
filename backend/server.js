@@ -477,11 +477,24 @@ Split into TWO groups:
 LENGTH — NO ARTIFICIAL CAP:
 - Use **as much space as the content needs**. Do **not** shorten, compress, or strip substance to hit a word count. If you must choose between filler and a **real metric**, keep the metric.
 
+SKILLS / CORE COMPETENCIES — WRITE FROM EXPERIENCE, NOT THE JOB POSTING:
+- The skills section should reflect what the candidate actually knows and does — not a mirror of the job description.
+- Do NOT copy job posting language into the skills section verbatim. If the posting says "ability to lift 50 lbs" or "must follow uniform policy," those are not skills.
+- No physical requirements, workplace policy language, or HR boilerplate (e.g. "punctuality," "professional appearance," "ability to stand for long periods").
+- Use natural professional terms grounded in the candidate's real background: what they've managed, built, handled, or delivered.
+- Keywords from the job posting can inform which relevant skills to highlight, but must be reworded to reflect the candidate's voice and actual competency.
+
+INTERPERSONAL & CUSTOMER-FACING LANGUAGE — VARY IT:
+- When describing people skills, rotate vocabulary across bullets — do not lean on the same wording repeatedly.
+- Pick the phrase that fits the role and industry (hospitality → guest satisfaction; property → tenant relations; B2B → account management; etc.).
+- Draw from this pool and similar plain terms as needed: tenant relations, customer retention, guest satisfaction, stakeholder communication, account management, relationship building, client rapport, customer advocacy.
+- **Never use the exact same phrase twice** anywhere on the resume (summary, bullets, skills). Each of these terms may appear at most once.
+
 ADDITIONAL RULES:
 - Start bullets with strong plain verbs — managed, delivered, built, resolved, coordinated, maintained, handled, ran, kept.
 - Keep quantifiable achievements where they exist. Real numbers beat keyword stuffing.
 - Keep all facts true — do not invent experience or skills.
-- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal AI tool/app/software the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering.
+- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal app/tool the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering. For all other roles leave it out completely.
 - NEVER invent metrics or scenarios. Each metric belongs to ONE role only — never mix them:
   • 731 units, 5.0 Google rating, 261 reviews → A-AAAKey Mini Storage ONLY
   • 98% on-time delivery rate → Green Cuisine medical delivery ONLY
@@ -613,7 +626,7 @@ ABSOLUTE TRUTH RULES — EVERY WORD MUST BE DEFENSIBLE IN AN INTERVIEW:
 - NEVER claim software proficiency unless the software is explicitly listed in the resume. If the candidate is learning a tool, say "currently training on [tool]" — never claim proficiency.
 - Draw ONLY from what exists in the master resume. If a skill or achievement is not there, do not invent it. Use transferable skills and honest bridging instead.
 - Use the candidate's real story with real details — real company names, real unit counts, real challenges they faced. Authentic specifics are more compelling than fabricated experience.
-- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal AI tool/app the candidate built, unless the job is explicitly in tech/software development.
+- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal app/tool the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering.
 - Joshua is conversational in Spanish but NOT fluent. If Spanish language skills are relevant to the role, describe them honestly as "conversational Spanish skills" or "working knowledge of Spanish." NEVER claim fluency, bilingual status, or "fluency in both English and Spanish."
 - Never duplicate a sign-off inside the body. Do NOT include the date, "Dear Hiring Manager,", "Sincerely,", or the candidate's name in your output — the template adds them exactly once.
 
@@ -1957,7 +1970,7 @@ CRITICAL RULES:
   • 30+ leads per week → HVAC Lead Generator ONLY
   • 12% fuel reduction → Fleet Manager ONLY
   • 20% consultation increase → HVAC Lead Generator ONLY
-- NEVER mention "Indeeeed Optimizer", "Rio Brave", or any AI tool unless the job is in tech.
+- NEVER mention "Indeeeed Optimizer", "Rio Brave", or any personal app/tool the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering.
 - Joshua is conversational in Spanish — NEVER claim fluency.
 - Do NOT use banned AI words: honed, culminating, fostering, leveraging, paramount, seamlessly, etc.`;
 
@@ -2080,7 +2093,7 @@ CRITICAL RULES:
   • 12% fuel reduction → Fleet Manager ONLY
   • 20% consultation increase → HVAC Lead Generator ONLY
   No other numbers or stories exist. NEVER attribute a metric to the wrong company.
-- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any AI tool/app/software the candidate may have built — these must NEVER appear in any generated answer.
+- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal app/tool the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering.
 - The candidate's personal software projects, apps, or AI tools should ONLY be referenced if the job is explicitly in tech, AI, or software development AND the question specifically asks about relevant projects or technical experience.
 - For all other roles (customer service, leasing, sales, medical, property management, administrative, etc.) — draw ONLY from the candidate's professional work experience at real employers. Do not mention side projects, personal apps, or startup ventures unless they are directly relevant to the role being applied for.
 - Joshua is conversational in Spanish but NOT fluent. If Spanish skills are relevant, say "conversational Spanish" or "working knowledge of Spanish." NEVER claim fluency or bilingual status.`;
@@ -2304,7 +2317,7 @@ app.post('/answer-batch', async (req, res) => {
 
     const systemPrompt = `You are an expert job application assistant. You will receive a list of form fields from a job application page and the candidate's resume. For each field, generate the best answer using ONLY the candidate's real experience. Be specific, honest, and concise. For name fields use the candidate's name. For contact fields use their contact info. For short fields (name, city, phone, etc.) give just the value. For longer questions give 1-4 sentences.
 
-CRITICAL: NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any AI tool/app the candidate may have built. For non-tech roles, draw ONLY from professional work experience at real employers — no side projects or personal apps.
+CRITICAL: NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal app/tool the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering. Draw ONLY from professional work experience at real employers.
 Joshua is conversational in Spanish but NOT fluent. If Spanish skills are relevant, say "conversational Spanish" — NEVER claim fluency or bilingual status.
 Metrics must match the correct role: 731 units/5.0 rating/261 reviews = A-AAAKey Mini Storage ONLY; 98% on-time delivery = Green Cuisine ONLY; 30+ leads/week & 20% consultation increase = HVAC ONLY; 12% fuel reduction = Fleet Manager ONLY. Never mix metrics between roles.
 
