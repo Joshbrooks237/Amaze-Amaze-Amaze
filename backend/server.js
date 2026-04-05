@@ -417,9 +417,21 @@ print(json.dumps({"text": "\\n".join(text_parts)}))
 const PROMPTS = {
   keywordExtraction: `You are an ATS (Applicant Tracking System) expert. Analyze this job description and extract TWO types of items:
 
-1. KEYWORDS (single words or short terms, max 2 words): Extract the top 15 most important individual keywords. Examples: "Python", "leadership", "SQL", "compliance".
+1. KEYWORDS (single words or short terms, max 2 words): Extract the top 15 most important individual keywords that reflect real professional skills, experience, or qualifications.
 
-2. PHRASES (exact multi-word phrases, 3-6 words): Extract the top 10 most important exact phrases that ATS systems scan for as complete units. These should be phrases used verbatim in the job description. Examples: "customer service experience", "attention to detail", "cross-functional team collaboration", "data-driven decision making".
+2. PHRASES (exact multi-word phrases, 3-6 words): Extract the top 10 most important exact phrases that ATS systems scan for as complete units.
+
+ONLY extract keywords that represent genuine professional skills, experience areas, tools, or qualifications a candidate would list on a resume.
+
+DO NOT extract any of the following — these are job requirements, not candidate skills:
+- Physical requirements ("lift 50 lbs", "stand for long periods", "steel-toed boots")
+- Drug/background policy language ("drug-free", "background check", "drug test")
+- Workplace policy language ("uniform", "punctual", "reliable transportation", "valid driver's license" unless driving IS the job)
+- Legal boilerplate ("equal opportunity employer", "at-will employment")
+- Compensation/schedule details ("$18/hr", "weekends required", "full-time")
+
+GOOD examples: "customer service", "route optimization", "inventory management", "forklift certified", "team leadership", "POS systems", "conflict resolution"
+BAD examples: "able to lift 50 lbs", "drug-free workplace", "must have reliable transportation", "weekends and holidays"
 
 Categorize each as: technical_skill, soft_skill, qualification, or industry_term. Assign an importance score 1-10. Mark each with a "type" field: "keyword" or "phrase".
 
@@ -428,88 +440,40 @@ Return ONLY valid JSON, no markdown, no explanation.
 Expected format:
 {"keywords": [{"keyword": "...", "category": "technical_skill|soft_skill|qualification|industry_term", "importance": 1-10, "type": "keyword|phrase"}]}`,
 
-  resumeRewrite: `You are an expert resume strategist.
+  resumeRewrite: `You are tailoring a resume to match a specific job posting.
 
-###############################################################
-# KEYWORD REQUIREMENTS — YOU WILL BE SCORED ON THIS           #
-###############################################################
-Your output will be automatically scored against the provided keyword list.
-- You MUST achieve a **70-77% keyword match rate**
-- You MUST include **AT LEAST 11 of the 15 provided keywords**
-- If your score is below 70%, you have FAILED
+YOUR JOB IS SIMPLE:
+1. Read the master resume.
+2. Read the keywords extracted from the job posting.
+3. Rewrite the resume so those keywords appear naturally in the summary, skills, and bullet points.
+4. Output valid JSON.
 
-WHERE TO PUT KEYWORDS:
-1. SKILLS SECTION: List 8-12 relevant skills using exact keywords from the list
-2. SUMMARY: Include 3-4 keywords naturally in 2-3 sentences  
-3. BULLET POINTS: Each role should contain 2-3 keywords woven into achievements
+KEYWORDS:
+- Use the exact keywords provided. Put them in the skills section, the summary, and in bullet points.
+- Aim to include at least 10 of the 15 keywords. The scoring system checks for exact text matches.
+- The skills section is the easiest place — list 9-12 skills using terms from the keyword list where the candidate has real experience.
+- In bullets, swap in the keyword's exact phrasing where it makes sense. If the job says "route optimization" and the candidate optimized routes, use "route optimization."
+- No physical requirements or HR boilerplate as skills ("lift 50 lbs", "drug-free", "punctuality").
 
-KEYWORD INTEGRATION CHECKLIST (do this before outputting):
-□ Count how many keywords you used — is it at least 11?
-□ Check the skills section — does it contain keywords from the list?
-□ Check the summary — does it contain keywords?
-□ Check each role's bullets — do they contain keywords?
+ROLES — INCLUDE EVERY ONE:
+- Include ALL roles from the master resume. None dropped.
+- Split into "experience" (top 4-5 most relevant) and "additionalExperience" (everything else).
+- Order by relevance to the target job — most relevant first.
+- 3 bullets per experience role, 2 per additionalExperience role.
 
-If you cannot hit 11+ keywords, you are not trying hard enough. Every keyword CAN fit somewhere if you write creatively.
-###############################################################
+PROSE:
+- Sound human. Vary sentence length. No banned words: leveraged, utilized, spearheaded, facilitated, synergy, dynamic, robust, results-driven.
+- Rotate people-skill phrasing — don't repeat the same term twice on one resume.
+- Start bullets with plain verbs: managed, delivered, built, resolved, coordinated, maintained, handled, ran, kept.
 
-PROSE QUALITY — ALSO REQUIRED:
-- Sound like a real person, not a corporate drone
-- Vary sentence rhythm — short punchy lines mixed with longer ones
-- Show personality: dry humor, wry observations, unexpected turns of phrase
-- NO banned words: leveraged, utilized, spearheaded, facilitated, synergy, dynamic, robust, results-driven
-
-The goal is BOTH: 70%+ keyword match AND excellent human prose.
-
-CRITICAL RULES — EVERY ROLE MUST BE INCLUDED:
-- The master resume contains MANY different job roles. You MUST include ALL of them in your output. NEVER drop a role.
-- Count the roles in the master resume before outputting. If your output has fewer roles, you have failed.
-- Every role goes into either "experience" or "additionalExperience" — no role is left out, no matter how old or unrelated.
-- Order by relevance, but INCLUDE EVERYTHING.
-
-ORDERING — MOST RELEVANT FIRST, ALWAYS:
-- Order ALL roles strictly by relevance to the target job. The most relevant role goes first, regardless of seniority or recency.
-- If two roles are equally relevant, put the more recent one first.
-- Do NOT force management roles to the top if they are not the most relevant. A customer service role beats a storage management role when the target job is customer service.
-
-Split into TWO groups:
-- "experience" — The top 4-5 most relevant roles. Give 3 substantive bullets per role (add a 4th when a real metric must stay).
-- "additionalExperience" — ALL remaining roles in descending relevance order. 2 bullets per role; 3 if a key fact would otherwise be lost. Weave keywords where natural.
-LENGTH — NO ARTIFICIAL CAP:
-- Use **as much space as the content needs**. Do **not** shorten, compress, or strip substance to hit a word count. If you must choose between filler and a **real metric**, keep the metric.
-
-SKILLS / CORE COMPETENCIES — WRITE FROM EXPERIENCE, NOT THE JOB POSTING:
-- The skills section should reflect what the candidate actually knows and does — not a mirror of the job description.
-- Do NOT copy job posting language into the skills section verbatim. If the posting says "ability to lift 50 lbs" or "must follow uniform policy," those are not skills.
-- No physical requirements, workplace policy language, or HR boilerplate (e.g. "punctuality," "professional appearance," "ability to stand for long periods").
-- Use natural professional terms grounded in the candidate's real background: what they've managed, built, handled, or delivered.
-- Keywords from the job posting can inform which relevant skills to highlight, but must be reworded to reflect the candidate's voice and actual competency.
-
-INTERPERSONAL & CUSTOMER-FACING LANGUAGE — VARY IT:
-- When describing people skills, rotate vocabulary across bullets — do not lean on the same wording repeatedly.
-- Pick the phrase that fits the role and industry (hospitality → guest satisfaction; property → tenant relations; B2B → account management; etc.).
-- Draw from this pool and similar plain terms as needed: tenant relations, customer retention, guest satisfaction, stakeholder communication, account management, relationship building, client rapport, customer advocacy.
-- **Never use the exact same phrase twice** anywhere on the resume (summary, bullets, skills). Each of these terms may appear at most once.
-
-ADDITIONAL RULES:
-- Start bullets with strong plain verbs — managed, delivered, built, resolved, coordinated, maintained, handled, ran, kept.
-- Keep quantifiable achievements where they exist. Real numbers beat keyword stuffing.
-- Keep all facts true — do not invent experience or skills.
-- NEVER mention "Indeeeed Optimizer", "Indeeeed", "Rio Brave", "Rio Brave LLC", or any personal app/tool the candidate built UNLESS the target job is explicitly in software development, AI, tech, or engineering. For all other roles leave it out completely.
-- NEVER invent metrics or scenarios. Each metric belongs to ONE role only — never mix them:
+TRUTH:
+- All facts must be true. Never invent experience, skills, or metrics.
+- Metrics belong to specific roles ONLY — never mix them:
   • 731 units, 5.0 Google rating, 261 reviews → A-AAAKey Mini Storage ONLY
-  • 98% on-time delivery rate → Green Cuisine medical delivery ONLY
-  • 30+ leads/week → HVAC Lead Generator ONLY
+  • 98% on-time delivery rate → Green Cuisine ONLY
+  • 30+ leads/week, 20% consultation increase → HVAC Lead Generator ONLY
   • 12% fuel reduction → Fleet Manager ONLY
-  • 20% consultation increase → HVAC Lead Generator ONLY
-  No other numbers exist. Never attribute a metric to the wrong company.
-- Joshua is conversational in Spanish but NOT fluent. If Spanish language skills are relevant to the role, list them as "conversational Spanish" or "working knowledge of Spanish." NEVER claim fluency, bilingual status, or "fluent in Spanish."
-
-SKILLS ARRAY RULES:
-- Generate 9-12 skills for the "skills" array. These appear in a "Core Competencies" block on the resume.
-- Pull terms DIRECTLY from the job description wherever the candidate has genuine matching experience.
-- Use the job posting's EXACT phrasing — if they say "client relations" don't write "customer relationship management."
-- Mix hard skills (software, tools, certifications) with transferable soft skills (conflict resolution, team leadership).
-- These skills must be real — never claim a skill the candidate doesn't have.
+- Joshua is conversational in Spanish, NOT fluent. Never claim fluency.
 
 DATES — REQUIRED FOR EVERY ROLE:
 - Every role MUST include a "dates" field with the employment period from the master resume.
@@ -705,19 +669,8 @@ function buildResumeUserContent(resumeText, keywords, voiceText) {
   if (voiceText) {
     content += `\n\n---\nVOICE PROFILE — This captures the candidate's communication style, real stories, and what makes them memorable. Use this to make the resume sound genuinely like this person:\n${voiceText}`;
   }
-  content += `\n\n---\nLENGTH: No target word count — use as much space as needed for every role and every important fact.\nORDER: Management/lead roles first (by relevance), then other roles by relevance.\n`;
-  content += `\n---\n###############################################################
-# SCORE TARGET: 70-77% — USE AT LEAST 11 OF THESE 15 KEYWORDS #
-###############################################################
-
-KEYWORDS TO USE (you will be scored on how many appear in your output):
-${keywordList}
-
-PHRASES TO USE (exact multi-word matches):
-${phraseList}
-
-REMINDER: Put keywords in SKILLS, SUMMARY, and BULLET POINTS. Count them before submitting — you need 11+.
-###############################################################`;
+  content += `\n\n---\nORDER: Most relevant roles to the target job first.\n`;
+  content += `\n---\nKEYWORDS — put these in your skills, summary, and bullets:\n${keywordList}\n\nPHRASES — use these exact multi-word matches where they fit:\n${phraseList}`;
   return content;
 }
 
@@ -744,6 +697,48 @@ async function rewriteResumeWithStrategy(resumeText, keywords, retryInstruction,
     console.error('[AI] Failed to parse resume JSON:', err.message);
     throw new Error('AI returned invalid resume JSON');
   }
+}
+
+// Tech job detector — only allow Rio Brave/app mentions for these roles
+function isTechJob(jobTitle = '', description = '') {
+  const techKeywords = /software|engineer|developer|programming|devops|frontend|backend|full.?stack|machine learning|artificial intelligence|data scientist|cloud|api|python|javascript|typescript|react|node\.?js|tech lead|product manager|ios|android|mobile dev/i;
+  return techKeywords.test(jobTitle) || techKeywords.test(description.substring(0, 500));
+}
+
+// Scrub Rio Brave / Indeeeed / personal app mentions from non-tech resumes
+function scrubAppMentions(resumeJson, jobTitle, jobDescription) {
+  if (isTechJob(jobTitle, jobDescription)) return resumeJson;
+
+  const appCompany = /Rio Brave|Indeeeed/i;
+  const appContent = /Rio Brave|Indeeeed|job optimization|resume optim|application optimizer|imitationgame|full.?stack AI|AI.?powered resume|ATS keyword|AI job|job search app|GitHub repositor/i;
+  const appSkills = /full.?stack|AI|machine learning|GitHub|software development|python|javascript|react|node\.?js|programming/i;
+
+  // Remove entire roles where the company is Rio Brave or Indeeeed
+  const scrubSection = (section) => {
+    if (!Array.isArray(section)) return section;
+    return section
+      .filter(role => !appCompany.test(role.company || ''))
+      .map(role => ({
+        ...role,
+        bullets: (role.bullets || []).filter(b => !appContent.test(b))
+      }));
+  };
+
+  // Scrub summary — remove sentences about the app
+  let summary = resumeJson.summary || '';
+  summary = summary.split(/(?<=\.)\s+/).filter(s => !appContent.test(s)).join(' ').trim();
+  if (!summary) summary = resumeJson.summary;
+
+  // Scrub skills — remove AI/dev skills for non-tech roles
+  const skills = (resumeJson.skills || []).filter(s => !appSkills.test(s));
+
+  return {
+    ...resumeJson,
+    summary,
+    skills,
+    experience: scrubSection(resumeJson.experience),
+    additionalExperience: scrubSection(resumeJson.additionalExperience),
+  };
 }
 
 function extractCandidateName(resumeText) {
@@ -1401,6 +1396,7 @@ app.post('/optimize', async (req, res) => {
         rewrittenResume = await rewriteResumeWithStrategy(
           masterResume.text, keywords, strategy ? strategy.instruction : null, voiceText
         );
+        rewrittenResume = scrubAppMentions(rewrittenResume, jobTitle, fullDescription);
         console.log('[Server] Resume rewritten successfully');
       } catch (parseErr) {
         console.error(`[Server] Attempt ${attempt + 1} failed: ${parseErr.message}`);
@@ -1609,6 +1605,7 @@ app.post('/re-optimize/:id', async (req, res) => {
         rewrittenResume = await rewriteResumeWithStrategy(
           masterResume.text, keywords, strategy.instruction, voiceText
         );
+        rewrittenResume = scrubAppMentions(rewrittenResume, entry.jobTitle, entry.fullDescription || '');
       } catch (parseErr) {
         console.error(`[Server] Shake ${attempt + 1} failed: ${parseErr.message}`);
         continue;
@@ -1869,6 +1866,7 @@ app.post('/analyze-text', async (req, res) => {
           rewrittenResume = await rewriteResumeWithStrategy(
             masterResume.text, keywords, null, voiceText
           );
+          rewrittenResume = scrubAppMentions(rewrittenResume, jobTitle, text || '');
         } catch (e) {
           if (attempt < MAX_RETRIES) continue;
           throw e;
