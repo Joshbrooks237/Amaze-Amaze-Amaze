@@ -425,7 +425,7 @@ ONLY extract keywords that represent genuine professional skills, experience are
 
 DO NOT extract any of the following — these are NOT candidate skills:
 - Physical requirements ("lift 50 lbs", "stand for long periods", "steel-toed boots")
-- Drug/background policy ("drug-free", "background check", "drug test")
+- Drug/substance policy language ("drug-free", "background check", "drug test", "substance use", "substance abuse", "controlled substances")
 - Workplace policy ("uniform", "punctual", "reliable transportation")
 - Legal boilerplate ("equal opportunity employer", "at-will employment")
 - Compensation/benefits ("commission", "bonus", "route bonus", "$18/hr", "benefits package")
@@ -433,11 +433,12 @@ DO NOT extract any of the following — these are NOT candidate skills:
 - Company industry/product terms that aren't candidate skills ("textile rental", "uniform rental", "linen supply")
 - Driving record/license requirements ("driving record", "clean MVR", "valid driver's license")
 - Schedule details ("weekends required", "full-time", "overtime")
+- Anything that would look bizarre, embarrassing, or out of place on a professional resume
 
-A keyword should be something the candidate DOES or KNOWS — an action, a skill, a competency. NOT something the company offers, requires, or provides.
+Ask yourself: "Would a real person proudly list this on their resume?" If no — leave it out.
 
 GOOD examples: "customer service", "route optimization", "inventory management", "sales", "team leadership", "CRM", "conflict resolution", "upsell", "cross-sell", "account management"
-BAD examples: "box truck", "step-van", "uniform rental", "route bonus", "commission", "driving record", "drug-free", "textile rental"
+BAD examples: "box truck", "step-van", "uniform rental", "route bonus", "commission", "driving record", "drug-free", "substance use", "textile rental"
 
 Categorize each as: technical_skill, soft_skill, qualification, or industry_term. Assign an importance score 1-10. Mark each with a "type" field: "keyword" or "phrase".
 
@@ -461,16 +462,25 @@ KEYWORDS:
 - In bullets, swap in the keyword's exact phrasing where it makes sense. If the job says "route optimization" and the candidate optimized routes, use "route optimization."
 - No physical requirements or HR boilerplate as skills ("lift 50 lbs", "drug-free", "punctuality").
 
-ROLES — INCLUDE EVERY ONE:
-- Include ALL roles from the master resume. None dropped.
-- Split into "experience" (top 4-5 most relevant) and "additionalExperience" (everything else).
-- Order by relevance to the target job — most relevant first.
-- 3 bullets per experience role, 2 per additionalExperience role.
+ROLES — EVERY SINGLE ONE, NO EXCEPTIONS:
+- Count the roles in the master resume. Your output must have the exact same number of roles total across "experience" + "additionalExperience". If you drop even one role, you have failed.
+- Order by relevance to the target job — most relevant at the top of "experience", least relevant at the bottom of "additionalExperience". But ALL of them are in there.
+- "experience" = the top 4-5 most relevant roles, 3 bullets each.
+- "additionalExperience" = every remaining role, 2 bullets each. No exceptions, no omissions.
 
-PROSE:
-- Sound human. Vary sentence length. No banned words: leveraged, utilized, spearheaded, facilitated, synergy, dynamic, robust, results-driven.
-- Rotate people-skill phrasing — don't repeat the same term twice on one resume.
-- Start bullets with plain verbs: managed, delivered, built, resolved, coordinated, maintained, handled, ran, kept.
+VOICE — THIS IS JOSHUA BROOKS, NOT A GENERIC APPLICANT:
+- The resume must sound like the same person regardless of which job it's tailored for. Core identity stays intact. Keywords are seasoning — they get the resume seen, but the person underneath doesn't change.
+- One keyword per bullet, max. Don't stack them. A bullet with three keywords reads like a keyword list, not a human achievement.
+- Write the bullet as a real thing this person did, then swap in a keyword if it fits naturally. If it doesn't fit, leave the bullet alone.
+- The summary is a VALUE PROPOSITION — 2-3 sentences that say what this person offers, not what they want. Confident, plain-spoken, a little dry. Not a keyword sandwich.
+
+BULLET POINT CRAFT — USE THE X-Y-Z FORMULA:
+- Structure: "Accomplished [X] as measured by [Y], by doing [Z]." Not every bullet needs all three, but every bullet should have a real action and a real outcome.
+- 15-25 words per bullet. 1-2 lines max. Tight.
+- 3-4 bullets per role in "experience", 2 in "additionalExperience."
+- Start with a strong past-tense verb (previous roles) or present-tense (current role): managed, delivered, built, resolved, coordinated, maintained, handled, ran, kept, grew, trained, reduced, improved.
+- Include real numbers where they exist — quantified results increase interview chances by 40%.
+- No banned words: leveraged, utilized, spearheaded, facilitated, synergy, dynamic, robust, results-driven, passionate, detail-oriented, proven track record, successfully.
 
 TRUTH:
 - All facts must be true. Never invent experience, skills, or metrics.
@@ -643,6 +653,9 @@ async function callOpenAI(systemPrompt, userContent, label, options = {}) {
   }
 }
 
+// Keywords that should never appear on a resume regardless of job description
+const BANNED_KEYWORDS = /^(substance use|substance abuse|drug.?free|drug test|background check|controlled substance|lift \d+|stand for|steel.?toed|uniform rental|textile rental|linen supply|driving record|clean mvr|route bonus|box truck|step.?van|hand truck|at.?will|equal opportunity|weekends required|full.?time|part.?time|overtime required|\$[\d.]+|per hour|commission only)$/i;
+
 async function extractKeywords(jobDescription) {
   const raw = await callOpenAI(
     PROMPTS.keywordExtraction,
@@ -652,7 +665,16 @@ async function extractKeywords(jobDescription) {
 
   try {
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    // Hard filter — strip any keyword that would look embarrassing on a resume
+    parsed.keywords = (parsed.keywords || []).filter(k => {
+      if (BANNED_KEYWORDS.test(k.keyword.trim())) {
+        console.log(`[Server] Filtered banned keyword: "${k.keyword}"`);
+        return false;
+      }
+      return true;
+    });
+    return parsed;
   } catch (err) {
     console.error('[AI] Failed to parse keyword JSON:', err.message);
     throw new Error('AI returned invalid keyword JSON');
@@ -675,7 +697,7 @@ function buildResumeUserContent(resumeText, keywords, voiceText) {
   if (voiceText) {
     content += `\n\n---\nVOICE PROFILE — This captures the candidate's communication style, real stories, and what makes them memorable. Use this to make the resume sound genuinely like this person:\n${voiceText}`;
   }
-  content += `\n\n---\nORDER: Most relevant roles to the target job first.\n`;
+  content += `\n\n---\nIMPORTANT: Include ALL roles from the master resume — every single one. Most relevant first, least relevant last. None dropped.\n`;
   content += `\n---\nKEYWORDS — put these in your skills, summary, and bullets:\n${keywordList}\n\nPHRASES — use these exact multi-word matches where they fit:\n${phraseList}`;
   return content;
 }
