@@ -455,12 +455,13 @@ YOUR JOB IS SIMPLE:
 3. Rewrite the resume so those keywords appear naturally in the summary, skills, and bullet points.
 4. Output valid JSON.
 
-KEYWORDS:
-- Use the exact keywords provided. Put them in the skills section, the summary, and in bullet points.
-- Aim to include at least 10 of the 15 keywords. The scoring system checks for exact text matches.
-- The skills section is the easiest place — list 9-12 skills using terms from the keyword list where the candidate has real experience.
-- In bullets, swap in the keyword's exact phrasing where it makes sense. If the job says "route optimization" and the candidate optimized routes, use "route optimization."
-- No physical requirements or HR boilerplate as skills ("lift 50 lbs", "drug-free", "punctuality").
+KEYWORDS — BALANCED APPROACH:
+- Target 65-75% keyword match. You MUST include at least 10 of the 15 keywords. But don't stuff all 15.
+- Skills section: Put 6-8 keywords here. This is the easiest, most natural place for them.
+- Summary: Work in 2-3 keywords naturally.
+- Bullets: Sprinkle in remaining keywords where they fit — one per bullet max, not every bullet.
+- Leave 3-5 keywords OUT. A resume that hits 100% looks like a robot wrote it.
+- The resume should read like a professional wrote it — keywords get it found, but don't dominate.
 
 ROLES — EVERY SINGLE ONE, NO EXCEPTIONS:
 - Count the roles in the master resume. Your output must have the exact same number of roles total across "experience" + "additionalExperience". If you drop even one role, you have failed.
@@ -1376,8 +1377,8 @@ app.post('/optimize', async (req, res) => {
   console.log(`[Server] Description length: ${fullDescription.length} chars`);
   console.log(`[Server] Tone: ${selectedTone}`);
 
-  const MATCH_THRESHOLD = 75; // Target 75-77% — aiming for 77
-  const MATCH_CEILING = 77;   // STOP HERE — the sweet spot
+  const MATCH_THRESHOLD = 65; // Target 65-75% — natural but still hits keywords
+  const MATCH_CEILING = 75;   // STOP HERE — anything higher looks robotic
   const MAX_RETRIES = 3;      // Keep trying until we hit 77
 
   const retryStrategies = [
@@ -1640,7 +1641,7 @@ app.post('/re-optimize/:id', async (req, res) => {
       }
 
       const scoring = calculateMatchScore(masterResume.text, keywords, rewrittenResume);
-      const MATCH_CEILING = 77;
+      const MATCH_CEILING = 75;
       const inSweetSpot = scoring.matchScore >= MATCH_THRESHOLD && scoring.matchScore <= MATCH_CEILING;
       console.log(`[Server] Shake ${attempt + 1} score: ${scoring.matchScore}% (target: ${MATCH_THRESHOLD}-${MATCH_CEILING}%)`);
       attemptsMade++;
