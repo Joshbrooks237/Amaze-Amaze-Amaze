@@ -698,6 +698,19 @@ function buildResumeUserContent(resumeText, keywords, voiceText) {
   if (voiceText) {
     content += `\n\n---\nVOICE PROFILE — This captures the candidate's communication style, real stories, and what makes them memorable. Use this to make the resume sound genuinely like this person:\n${voiceText}`;
   }
+
+  // Inject headhunter insights if available
+  const insights = loadHeadhunterInsights();
+  if (insights && insights.promptGuidance) {
+    content += `\n\n---\nHEADHUNTER GUIDANCE (from a 20-year veteran recruiter who reviewed this resume):\n${insights.promptGuidance}`;
+    if (insights.quickWins && insights.quickWins.length > 0) {
+      content += `\nKey improvements to apply:\n${insights.quickWins.map(w => `• ${w}`).join('\n')}`;
+    }
+    if (insights.summaryRewrite) {
+      content += `\nSuggested summary direction: "${insights.summaryRewrite}"`;
+    }
+  }
+
   content += `\n\n---\nIMPORTANT: Include ALL roles from the master resume — every single one. Most relevant first, least relevant last. None dropped.\n`;
   content += `\n---\nKEYWORDS — put these in your skills, summary, and bullets:\n${keywordList}\n\nPHRASES — use these exact multi-word matches where they fit:\n${phraseList}`;
   return content;
@@ -2524,6 +2537,28 @@ if (fs.existsSync(FRONTEND_BUILD)) {
     res.sendFile(path.join(FRONTEND_BUILD, 'index.html'));
   });
 }
+
+// ── Headhunter Insights Integration ──
+const HEADHUNTER_INSIGHTS_FILE = path.join(__dirname, 'data/headhunter-insights.json');
+
+function loadHeadhunterInsights() {
+  try { return JSON.parse(fs.readFileSync(HEADHUNTER_INSIGHTS_FILE, 'utf8')); } catch { return null; }
+}
+
+app.post('/headhunter-insights', (req, res) => {
+  try {
+    fs.writeFileSync(HEADHUNTER_INSIGHTS_FILE, JSON.stringify(req.body, null, 2));
+    console.log('[Server] Headhunter insights received and saved');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/headhunter-insights', (req, res) => {
+  const insights = loadHeadhunterInsights();
+  res.json({ insights: insights || null });
+});
 
 // ── Start Server ──
 loadPersistedData();
