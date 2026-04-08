@@ -657,6 +657,48 @@ async function callOpenAI(systemPrompt, userContent, label, options = {}) {
 // Keywords that should never appear on a resume regardless of job description
 const BANNED_KEYWORDS = /^(substance use|substance abuse|drug.?free|drug test|background check|controlled substance|lift \d+|stand for|steel.?toed|uniform rental|textile rental|linen supply|driving record|clean mvr|route bonus|box truck|step.?van|hand truck|at.?will|equal opportunity|weekends required|full.?time|part.?time|overtime required|\$[\d.]+|per hour|commission only)$/i;
 
+async function runHeadhunterReview(profile, targetRole = '') {
+  const systemPrompt = `You are a headhunter with 20 years of experience. Review this resume quickly and return a brief JSON assessment. Be specific — reference real companies and numbers from the resume.`;
+
+  const userPrompt = `Review this resume${targetRole ? ` for a candidate targeting: ${targetRole}` : ''}.
+
+RESUME:
+${profile.text}
+
+Return ONLY valid JSON:
+{
+  "overallScore": <1-10>,
+  "headline": "<one punchy sentence about this candidate>",
+  "strengths": [{"title":"...","detail":"..."}],
+  "weaknesses": [{"title":"...","detail":"..."}],
+  "gaps": [{"title":"...","detail":"..."}],
+  "quickWins": ["specific fix 1","specific fix 2","specific fix 3"],
+  "summaryRewrite": "<rewrite the summary in 2-3 sharp human sentences>",
+  "promptGuidance": "<1-2 sentences of guidance for an AI resume builder about this candidate's biggest opportunity>"
+}`;
+
+  const raw = await callOpenAI(systemPrompt, userPrompt, 'Headhunter Review', { maxTokens: 1200 });
+  const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const insights = JSON.parse(cleaned);
+  insights.candidateName = profile.name;
+  insights.profileId = profile.id;
+  insights.targetRole = targetRole;
+  insights.reviewedAt = new Date().toISOString();
+
+  // Save insights so :3088 UI can display them
+  try {
+    fs.writeFileSync(
+      path.join(__dirname, 'data/headhunter-insights.json'),
+      JSON.stringify(insights, null, 2)
+    );
+    console.log(`[Server] Headhunter review complete — score: ${insights.overallScore}/10`);
+  } catch (e) {
+    console.warn('[Server] Could not save headhunter insights:', e.message);
+  }
+
+  return insights;
+}
+
 async function extractKeywords(jobDescription) {
   const raw = await callOpenAI(
     PROMPTS.keywordExtraction,
@@ -1414,9 +1456,15 @@ app.post('/optimize', async (req, res) => {
     const jobContext = `${jobTitle || ''} at ${companyName || ''}: ${fullDescription.substring(0, 300)}`;
     const voiceText = await autoSelectVoiceText(masterResume, jobContext);
 
-    // Step 1: Extract ATS keywords (done once, reused across retries)
-    console.log('[Server] Step 1: Extracting keywords...');
-    const keywords = await extractKeywords(fullDescription);
+    // Step 1: Extract keywords AND run headhunter review in parallel
+    console.log('[Server] Step 1: Extracting keywords + headhunter review (parallel)...');
+    const [keywords] = await Promise.all([
+      extractKeywords(fullDescription),
+      runHeadhunterReview(masterResume, jobTitle).catch(e => {
+        console.warn('[Server] Headhunter review failed (non-fatal):', e.message);
+        return null;
+      })
+    ]);
     console.log(`[Server] Extracted ${keywords.keywords?.length || 0} keywords`);
 
     let bestResult = null;
@@ -2558,6 +2606,48 @@ app.post('/headhunter-insights', (req, res) => {
 app.get('/headhunter-insights', (req, res) => {
   const insights = loadHeadhunterInsights();
   res.json({ insights: insights || null });
+});
+
+app.post('/request-headhunter-review', async (req, res) => {
+  try {
+    const profile = getActiveProfile();
+    if (!profile) {
+      return res.status(400).json({ error: 'No active profile found' });
+    }
+
+    const { targetRole, jobDescription } = req.body;
+
+    console.log(`[Server] Requesting headhunter review for: ${profile.name}`);
+
+    const fetch = require('node-fetch');
+    const response = await fetch('http://localhost:3088/api/review-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        resumeText: profile.text,
+        candidateName: profile.name,
+        profileId: profile.id,
+        targetRole: targetRole || '',
+        jobDescription: jobDescription || ''
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Headhunter review failed');
+    }
+
+    const data = await response.json();
+    
+    // Save insights locally
+    fs.writeFileSync(HEADHUNTER_INSIGHTS_FILE, JSON.stringify(data.insights, null, 2));
+    console.log('[Server] Headhunter insights received and saved');
+
+    res.json({ success: true, insights: data.insights });
+  } catch (err) {
+    console.error('[Server] Headhunter review error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Start Server ──
